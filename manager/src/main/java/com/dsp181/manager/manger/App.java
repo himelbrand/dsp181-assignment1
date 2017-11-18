@@ -85,10 +85,11 @@ public class App {
 
 		//update reviewsHashmap and write summary file if necessary
 		retriveMessageFromWorkersQueue();
-
-
+		
 	}
 
+	
+////////////////////////////////////////////////////////////////////////////
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
 		List<Message> messages = sqs.reciveMessages("localAppQueue");
@@ -227,6 +228,7 @@ public class App {
 				Iterator<Entry<String, Review>> it = reviewsHashmap.get(movieTitle).second.entrySet().iterator();
 				while (it.hasNext()) {
 					Map.Entry<String, Review> pair = (Map.Entry<String, Review>)it.next();
+					jsonPerReview = new JsonObject();
 					jsonPerReview.addProperty("review",((Review)pair.getValue()).getReview());
 					jsonPerReview.addProperty("entities",((Review)pair.getValue()).getEntities());
 					jsonPerReview.addProperty("sentiment",((Review)pair.getValue()).getSentiment());
