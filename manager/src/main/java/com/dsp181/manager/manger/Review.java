@@ -4,14 +4,22 @@ package com.dsp181.manager.manger;
 public class Review {
 	private String id;
 	private String review;
+	private String url;
 	private int sentiment;
 	private String entities;
-	public Review(String id,String review,int sentiment,String entities)
+	public Review(String id,String review,String url,int sentiment,String entities)
 	{
+		this.url = url;
 		this.id = id;
 		this.review = review;
 		this.sentiment = sentiment;
 		this.entities = entities;
+	}
+	public String getUrl() {
+		return url;
+	}
+	public void setUrl(String url) {
+		this.url = url;
 	}
 	public void setEntities(String entities) {
 		this.entities = entities;

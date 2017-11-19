@@ -30,12 +30,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.jayway.jsonpath.internal.function.numeric.Min;
 
 import edu.stanford.nlp.util.Pair;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.mturk.model.CreateWorkerBlockRequest;
+import com.amazonaws.services.mturk.model.transform.ReviewActionDetailJsonUnmarshaller;
 
 /**
  * Hello world!
@@ -49,55 +51,63 @@ public class App {
 	static double numberOfReviewsPerWorker;
 	static Map<String, Pair<Integer,Map<String, Review>>> reviewsHashmap;
 	static 	List<Instance> workersIntances;
+	static boolean terminate;
 	public static void main( String[] args )
 	{
 		sqs = new SQS();
 		sqs.createQueue("workersQueue");
 
+		terminate = false;
 
 		s3 = new S3();
+
 		AWSCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(new ProfileCredentialsProvider().getCredentials());
 		ec2 = AmazonEC2ClientBuilder.standard()
 				.withCredentials(credentialsProvider)
 				.withRegion("us-east-1")
 				.build();
 
-		//contain all review in the form of hashMap<key : "movie title, value : pair< numberOfResloveRevies , hashMap<key : reviewId, value : reviewObj>>>		
+		//contain all review in the form of hashMap<key : "file key, value : pair< numberOfResloveRevies , hashMap<key : reviewId, value : reviewObj>>>		
 		reviewsHashmap = new HashMap<String, Pair<Integer,Map<String, Review >>>();
 
-		numberOfReviewsPerWorker=0; //TODO
+		numberOfReviewsPerWorker=0;
 
 		workersIntances = null;
 
 
-		HashMap<String, String> keysAndBucketsHashMap = retriveMessageFromLocalAppQueue();
+		while(!terminate){
+			HashMap<String, String> keysAndBucketsHashMap = retriveMessageFromLocalAppQueue();
 
-		ArrayList<S3Object> localAppDownloadedInputFiles = retriveFilesFromS3(keysAndBucketsHashMap);
+			ArrayList<S3Object> localAppDownloadedInputFiles = retriveFilesFromS3(keysAndBucketsHashMap);
 
-		//,reviewSentiment,reviewEntities;
-		int numberOfreviews = sendMessagesToWorkersQueue(localAppDownloadedInputFiles);
+			//,reviewSentiment,reviewEntities;
+			int numberOfreviews = sendMessagesToWorkersQueue(localAppDownloadedInputFiles);
 
-		//create workers
-		int numberOfWorkersToCreate = (int)Math.ceil(numberOfreviews / numberOfReviewsPerWorker) - workersIntances.size();
-		if(numberOfWorkersToCreate > 0){
-			createWorkers(numberOfWorkersToCreate);
+			//create workers
+			int numberOfWorkersToCreate = (int)Math.ceil(numberOfreviews / numberOfReviewsPerWorker) - workersIntances.size();
+			if(numberOfWorkersToCreate > 0){
+				createWorkers(numberOfWorkersToCreate);
+			}
+
+			//update reviewsHashmap and write summary file if necessary
+			retriveMessageFromWorkersQueue();
 		}
-
-		//update reviewsHashmap and write summary file if necessary
-		retriveMessageFromWorkersQueue();
-		
 	}
 
-	
-////////////////////////////////////////////////////////////////////////////
+
+	////////////////////////////////////////////////////////////////////////////
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
 		List<Message> messages = sqs.reciveMessages("localAppQueue");
 		for(Message message:messages){
 			if(message.getBody().split("###")[0].equals("fileMessage")) {
 				keysAndBucketsHashMap.put(message.getBody().split("###")[1], message.getBody().split("###")[2]);
+				numberOfReviewsPerWorker = Math.min(numberOfReviewsPerWorker, Integer.parseInt(message.getBody().split("###")[3]));
 				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),"localAppQueue");
+			}else if(message.getBody().equals("terminate")) {
+				terminate = true;
+				break;
 			}
 
 		}
@@ -121,7 +131,7 @@ public class App {
 		Gson gson = new Gson();
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
-		String sCurrentLine,movieTitle,reviewId,reviewText;
+		String sCurrentLine,movieTitle,reviewId,reviewText,reviewUrl;
 		for(S3Object fileInputObject: localAppDownloadedInputFiles){
 			reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
 			try {
@@ -130,27 +140,25 @@ public class App {
 					jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
 					jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
-					//movieTitle = jsonObjLine.get("title").toString().replace(" ","_");
 					movieTitle = fileInputObject.getBucketName()+"@@@" + fileInputObject.getKey();
 
 					for(JsonElement review:  jsonReviews) {
 						reviewId = ((JsonObject) review).get("id").toString();
 						reviewText = ((JsonObject) review).get("text").toString();
+						reviewUrl = ((JsonObject) review).get("link").toString();
 						numberOfreviews++;
+
 						// first movie review
 						if(reviewsHashmap.get(movieTitle) == null){ 
 							Map<String, Review> tempMap = new HashMap<String, Review>();
-							tempMap.put(reviewId, new Review(reviewId,reviewText,0,null));
-							reviewsHashmap.put(movieTitle,new Pair(0,tempMap));
+							tempMap.put(reviewId, new Review(reviewId,reviewText,reviewUrl,0,null));
+							reviewsHashmap.put(movieTitle,new Pair<Integer,Map<String,Review>>(0,tempMap));
 						}
 						// movie already ready exist in the hashMap
 						else{
-							Map<String, Review> tempMap = reviewsHashmap.get(movieTitle).second();
-							tempMap.put(reviewId,new Review(reviewId,reviewText,0,null));
-							reviewsHashmap.get(movieTitle).setSecond(tempMap);
-
+							reviewsHashmap.get(movieTitle).second().put(reviewId,new Review(reviewId,reviewText,reviewUrl,0,null));
 						}
-						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText ,"workersQueue");
+						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText + "###" + reviewUrl,"workersQueue");
 					}
 				}
 
@@ -232,6 +240,7 @@ public class App {
 					jsonPerReview.addProperty("review",((Review)pair.getValue()).getReview());
 					jsonPerReview.addProperty("entities",((Review)pair.getValue()).getEntities());
 					jsonPerReview.addProperty("sentiment",((Review)pair.getValue()).getSentiment());
+					jsonPerReview.addProperty("url",((Review)pair.getValue()).getUrl());
 					writer.println(jsonPerReview);
 				}
 				writer.close();

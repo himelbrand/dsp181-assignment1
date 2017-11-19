@@ -8,10 +8,15 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.util.*;
 
 public class App {
@@ -26,49 +31,51 @@ public class App {
 
 		credentialsProvider = new AWSStaticCredentialsProvider(new ProfileCredentialsProvider().getCredentials());
 
+		uuid = UUID.randomUUID();
+
 		s3 = new S3();
 		s3.launch(credentialsProvider,uuid);
 
 		sqs = new SQS();
 		sqs.launch(credentialsProvider);
 
-		uuid = UUID.randomUUID();
+
+		// get details from args array
+		ArrayList<String> filesPathArray = new ArrayList<String>();
+		boolean terminate = false;
+		int numberOfFilesPerWorker = 0,numberOfFiles=args.length;
+		if(args[args.length - 1].equals("terminate")){
+			terminate = true;
+			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 2]);
+			numberOfFiles -= 2;
+		}
+		else{
+			numberOfFiles -= 1;
+			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 1]);
+		}
+		for(int i=0;i<numberOfFiles;i++){
+			filesPathArray.add(args[i]);
+		}
 
 		// check if the manager node is active and run it otherwise
 		launchManagerNode();
-
+		
 		// set S3 storage and upload files
-
-		String[] filesPath = {"./input/B001DZTJRQ.txt"}; //TODO
-
-		ArrayList<String> filesKeys = s3.uploadFiles(filesPath);
-
-		sendInputFilesLocation(filesKeys);
-
+		ArrayList<String> filesKeys = s3.uploadFiles(filesPathArray);
+		int remainingFiles = filesKeys.size();
+		sendInputFilesLocation(filesKeys,numberOfFilesPerWorker);
+		
+		// send termination message
+		if(terminate)
+			sqs.sendMessage("terminate");
+		
 		// check for message "completeFileMessage"
-		ArrayList<String> responseCompleteFilesKeys = checkForCompleteFileMessage();
-
-		// download files from S3
-		ArrayList<S3Object> responseObjects = s3.downloadFiles(responseCompleteFilesKeys.toArray(new String[responseCompleteFilesKeys.size()]);
-		for(S3Object responseObject:responseObjects)
-		{
-			StringBuilder htmlBuilder =new StringBuilder();
-			htmlBuilder.append("<html>");
-			htmlBuilder.append("<head><title> file " + responseObject.getObjectMetadata() + "</title></head>");
-			htmlBuilder.append("<body>");
-			BufferedReader reader = new BufferedReader(new InputStreamReader(responseObject.getObjectContent()));
-			String line;
-			while((line = reader.readLine()) != null) {
-				System.out.println(line);
-			}
-
-			System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
-
+		while(remainingFiles > 0){ 
+			ArrayList<String> responseCompleteFilesKeys = checkForCompleteFileMessage();
+			remainingFiles -= responseCompleteFilesKeys.size();
+			// download files from S3 and create html file
+			downloadResulstAndCreateHtml(responseCompleteFilesKeys);
 		}
-
-		//create HTML file
-
-
 
 		//send a termination message to the manager mode
 		// TODO check how its need to be supplied as one of the input argument
@@ -130,16 +137,16 @@ public class App {
 		}
 	}
 
-	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys){
+	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
 		for(String fileKey:filesKeys){
-			sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName());
+			sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker);
 		}
 		System.out.println();
 	}
 
 	private static ArrayList<String> checkForCompleteFileMessage(){
 		List<Message> messages;
-		ArrayList<String> responseKeys = null;
+		ArrayList<String> responseKeys = new ArrayList<String>();
 		messages = sqs.reciveMessages();
 		for(Message message:messages){
 			if(message.getBody().split("###")[0].equals("completeFileMessage")) {
@@ -151,5 +158,53 @@ public class App {
 			System.out.println("waiting for process complete message, another 20 sec");
 		}
 		return responseKeys;
+	}
+
+	private static void downloadResulstAndCreateHtml(ArrayList<String> responseCompleteFilesKeys){
+
+		try {
+			ArrayList<S3Object> responseObjects;
+			responseObjects = s3.downloadFiles(responseCompleteFilesKeys.toArray(new String[responseCompleteFilesKeys.size()]));
+			for(S3Object responseObject:responseObjects)
+			{
+				StringBuilder htmlBuilder =new StringBuilder();
+				htmlBuilder.append("<html>");
+				htmlBuilder.append("<head><title> file " + responseObject.getObjectMetadata() + "</title></head>");
+				htmlBuilder.append("<body>");
+				BufferedReader reader = new BufferedReader(new InputStreamReader(responseObject.getObjectContent()));
+				String line;
+				String color;
+				Gson gson = new Gson(); 
+				JsonElement jelem;
+				JsonObject jobj; 
+				while((line = reader.readLine()) != null) {
+					jelem = gson.fromJson(line, JsonElement.class);
+					jobj = jelem.getAsJsonObject();
+
+					switch(Integer.parseInt(jobj.get("sentiment").getAsString())){
+					case 0: color = "DarkRed";
+					case 1: color = "red";
+					case 2: color = "black";
+					case 3: color = "LightGreen";
+					case 4: color = "DarkGreen";
+					default: color = "yellow";
+					}
+					htmlBuilder.append("<a href=\"" +  jobj.get("url").getAsString() + "\"> <div style=\"color:"+color +";\">"  + jobj.get("review").getAsString() + " " + jobj.get("entities").getAsString() + " </div></a>");
+				}
+				htmlBuilder.append("</body></html>");
+				PrintWriter writer = new PrintWriter(responseObject.getKey()+ ".html" , "UTF-8");
+				writer.print(htmlBuilder);
+				ArrayList<String> tempArrayList = new ArrayList<String>();
+				tempArrayList.add(responseObject.getKey()+ ".html");
+				s3.uploadFiles(tempArrayList);
+				writer.close();
+				System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
+
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 	}
 }

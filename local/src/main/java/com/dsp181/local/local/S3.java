@@ -111,7 +111,7 @@ public class S3 {
         }
     }
 
-    public ArrayList<String> uploadFiles(String[] files) {
+    public ArrayList<String> uploadFiles(ArrayList<String> files) {
 
         ArrayList<String> keys = new ArrayList<String>();
         System.out.println("Uploading a new object to S3 from a file\n");
