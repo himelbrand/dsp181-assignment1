@@ -9,6 +9,8 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -186,6 +188,7 @@ public class App {
 			RunInstancesRequest request = new RunInstancesRequest("ami-6057e21a", numberOfWorkersToCreate, numberOfWorkersToCreate);
 
 			request.setInstanceType(InstanceType.T2Micro.toString());
+			request.setUserData(getUserDataScript());
 			List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
 
 			for (Instance instance : instances) {
@@ -259,5 +262,32 @@ public class App {
 			e.printStackTrace();
 		}
 	}
+	private static String getUserDataScript(){
+        ArrayList<String> lines = new ArrayList<String>();
+        lines.add("#! /bin/bash");
+        lines.add("sudo apt-get update");
+        lines.add("sudo apt-get install openjdk-8-jre-headless -y");
+        lines.add("sudo apt-get install wget -y");
+        lines.add("sudo wget http://repo1.maven.org/maven2/com/googlecode/efficient-java-matrix-library/ejml/0.23/ejml-0.23.jar");
+        lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0.jar");
+        lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0-models.jar");
+        lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
+        lines.add("sudo wget workerJarURL.jar -O worker.jar");
+        lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
+        String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
+        return str;
+    }
 
+    private static String join(Collection<String> s, String delimiter) {
+        StringBuilder builder = new StringBuilder();
+        Iterator<String> iter = s.iterator();
+        while (iter.hasNext()) {
+            builder.append(iter.next());
+            if (!iter.hasNext()) {
+                break;
+            }
+            builder.append(delimiter);
+        }
+        return builder.toString();
+    }
 }

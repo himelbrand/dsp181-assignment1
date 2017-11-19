@@ -119,6 +119,8 @@ public class App {
 				RunInstancesRequest request = new RunInstancesRequest("ami-6057e21a", 1, 1);
 
 				request.setInstanceType(InstanceType.T2Micro.toString());
+				request.setUserData(getUserDataScript());
+
 				List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
 
 				for (Instance instance : instances) {
@@ -207,4 +209,28 @@ public class App {
 		}
 
 	}
+	private static String getUserDataScript(){
+        ArrayList<String> lines = new ArrayList<String>();
+        lines.add("#! /bin/bash");
+        lines.add("sudo apt-get update");
+        lines.add("sudo apt-get install openjdk-8-jre-headless -y");
+        lines.add("sudo apt-get install wget -y");
+        lines.add("sudo wget managerJarURL.jar -O manager.jar");
+        lines.add("java -jar manager.jar");
+        String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
+        return str;
+    }
+
+    private static String join(Collection<String> s, String delimiter) {
+        StringBuilder builder = new StringBuilder();
+        Iterator<String> iter = s.iterator();
+        while (iter.hasNext()) {
+            builder.append(iter.next());
+            if (!iter.hasNext()) {
+                break;
+            }
+            builder.append(delimiter);
+        }
+        return builder.toString();
+    }
 }
