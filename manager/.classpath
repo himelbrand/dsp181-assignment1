@@ -22,15 +22,6 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/Users/Shahar/.m2/repository/com/amazonaws/aws-java-sdk-s3/1.11.106/aws-java-sdk-s3-1.11.106.jar">
-		<attributes>
-			<attribute name="maven.pomderived" value="true"/>
-			<attribute name="maven.groupId" value="com.amazonaws"/>
-			<attribute name="maven.artifactId" value="aws-java-sdk-s3"/>
-			<attribute name="maven.version" value="1.11.106"/>
-			<attribute name="maven.scope" value="compile"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry kind="lib" path="/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0-models.jar"/>
 	<classpathentry kind="lib" path="/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0.jar"/>
 	<classpathentry kind="lib" path="/Users/Shahar/Desktop/dasd/ejml-0.23.jar"/>
