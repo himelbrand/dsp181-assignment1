@@ -3,12 +3,12 @@ package com.dsp181.manager.manger;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
+//import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
-import java.util.Arrays;
+//import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.omg.CORBA.PUBLIC_MEMBER;
+//import org.omg.CORBA.PUBLIC_MEMBER;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -30,14 +30,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import com.jayway.jsonpath.internal.function.numeric.Min;
+//import com.jayway.jsonpath.internal.function.numeric.Min;
 
 import edu.stanford.nlp.util.Pair;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.ec2.model.*;
-import com.amazonaws.services.mturk.model.CreateWorkerBlockRequest;
-import com.amazonaws.services.mturk.model.transform.ReviewActionDetailJsonUnmarshaller;
+//import com.amazonaws.services.mturk.model.CreateWorkerBlockRequest;
+//import com.amazonaws.services.mturk.model.transform.ReviewActionDetailJsonUnmarshaller;
 
 /**
  * Hello world!
@@ -52,8 +52,7 @@ public class App {
 	static Map<String, Pair<Integer,Map<String, Review>>> reviewsHashmap;
 	static 	List<Instance> workersIntances;
 	static boolean terminate;
-	public static void main( String[] args )
-	{
+	public static void main( String[] args ){
 		sqs = new SQS();
 		sqs.createQueue("workersQueue");
 
@@ -80,7 +79,6 @@ public class App {
 
 			ArrayList<S3Object> localAppDownloadedInputFiles = retriveFilesFromS3(keysAndBucketsHashMap);
 
-			//,reviewSentiment,reviewEntities;
 			int numberOfreviews = sendMessagesToWorkersQueue(localAppDownloadedInputFiles);
 
 			//create workers
@@ -90,7 +88,11 @@ public class App {
 			}
 
 			//update reviewsHashmap and write summary file if necessary
-			retriveMessageFromWorkersQueue();
+			if(terminate)
+				while(reviewsHashmap.size() != 0)
+					retriveMessageFromWorkersQueue();
+			else
+				retriveMessageFromWorkersQueue();
 		}
 	}
 
@@ -158,7 +160,7 @@ public class App {
 						else{
 							reviewsHashmap.get(movieTitle).second().put(reviewId,new Review(reviewId,reviewText,reviewUrl,0,null));
 						}
-						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText + "###" + reviewUrl,"workersQueue");
+						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,"workersQueue");
 					}
 				}
 
@@ -249,6 +251,7 @@ public class App {
 				ArrayList<String> fileKey = s3.uploadFiles(new String[] {movieTitle + "@@@" + "complete.txt"}, movieTitle.split("@@@")[0]);
 				//send message to localApp containing the key of the summary file
 				sqs.sendMessage("completeFileMessage###" + fileKey.get(0), "localAppQueue");
+				reviewsHashmap.remove(movieTitle);
 
 			}
 		}    catch (FileNotFoundException e) {

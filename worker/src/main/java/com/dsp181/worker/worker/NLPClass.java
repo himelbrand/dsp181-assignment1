@@ -1,5 +1,6 @@
 package com.dsp181.worker.worker;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
@@ -52,21 +53,17 @@ public class NLPClass {
         return mainSentiment;
     }
 
-   /* public JsonArray printEntities(String review){
-
-        // return jsonArray containing the result
-        JsonArray resultEntitiesJsonArray = new JsonArray();
-
+    public  ArrayList<String> findEntities(String review){
         // create an empty Annotation just with the given text
         Annotation document = new Annotation(review);
-
+ 
         // run all Annotators on this text
         NERPipeline.annotate(document);
-
+ 
         // these are all the sentences in this document
         // a CoreMap is essentially a Map that uses class objects as keys and has values with custom types
         List<CoreMap> sentences = document.get(SentencesAnnotation.class);
-
+        ArrayList<String> entitiesArray = new ArrayList<String>();
         for(CoreMap sentence: sentences) {
             // traversing the words in the current sentence
             // a CoreLabel is a CoreMap with additional token-specific methods
@@ -75,10 +72,10 @@ public class NLPClass {
                 String word = token.get(TextAnnotation.class);
                 // this is the NER label of the token
                 String ne = token.get(NamedEntityTagAnnotation.class);
-                resultEntitiesJsonArray.add(word + ":" + ne);
+                entitiesArray.add(word +":" + ne);
+           
             }
         }
-        return resultEntitiesJsonArray;
-
-    }*/
+        return entitiesArray;
+    }
 }

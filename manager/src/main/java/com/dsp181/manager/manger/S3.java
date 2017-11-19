@@ -13,15 +13,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
+//import com.amazonaws.AmazonClientException;
+//import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.Bucket;
+//import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -88,7 +88,7 @@ public class S3 {
 
         System.out.println("Downloading an object");
         ArrayList<S3Object> s3ObjectList = new ArrayList<S3Object>();
-        for (Map.Entry entry : keysAndBuckets.entrySet()) {
+        for (Map.Entry<String,String> entry : keysAndBuckets.entrySet()) {
             S3Object object = s3.getObject(new GetObjectRequest(entry.getValue().toString(), entry.getKey().toString()));
             s3ObjectList.add(object);
             System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());

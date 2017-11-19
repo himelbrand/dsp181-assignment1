@@ -16,7 +16,6 @@ package com.dsp181.worker.worker;
  */
 import java.util.List;
 
-import java.util.UUID;
 import java.util.Map.Entry;
 
 import com.amazonaws.AmazonClientException;
@@ -87,7 +86,7 @@ public class SQS {
     public List<Message> reciveMessages(String queueUrl) {
         // Receive messages
         System.out.println("Receiving messages from " + queueUrl + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20);
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withMaxNumberOfMessages(1).withWaitTimeSeconds(20);
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
