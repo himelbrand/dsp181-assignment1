@@ -117,7 +117,7 @@ public class SQS {
 
     public void deleteMessages(List<Message> messages,String queueUrl) {
         // Delete a message
-        System.out.println("Deleting a message.\n");
+        //System.out.println("Deleting a message.\n");
         String messageRecieptHandle = messages.get(0).getReceiptHandle();
         sqs.deleteMessage(new DeleteMessageRequest(queueUrl, messageRecieptHandle));
     }

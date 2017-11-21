@@ -22,9 +22,5 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry exported="true" kind="lib" path="/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0-models.jar"/>
-	<classpathentry exported="true" kind="lib" path="/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0.jar"/>
-	<classpathentry exported="true" kind="lib" path="/Users/Shahar/Desktop/dasd/ejml-0.23.jar"/>
-	<classpathentry exported="true" kind="lib" path="/Users/Shahar/Desktop/dasd/jollyday-0.4.7.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

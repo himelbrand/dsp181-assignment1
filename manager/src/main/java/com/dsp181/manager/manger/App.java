@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -99,9 +100,8 @@ public class App {
 	static 	AmazonEC2 ec2;
 	static double numberOfReviewsPerWorker;
 
-	static Map<String, InputFile> inputFileHashmap = new HashMap<String, InputFile>();
+	static ConcurrentHashMap<String, InputFile> inputFileHashmap = new ConcurrentHashMap<String, InputFile>();
 
-	static 	ArrayList<Instance> workersIntances = new ArrayList<Instance>(); 
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
 	static ConcurrentLinkedQueue<String> movieTitleArrayList = new ConcurrentLinkedQueue<String>(); 
@@ -110,6 +110,8 @@ public class App {
 	static ExecutorService executor = Executors.newFixedThreadPool(1);
 	static CountDownLatch latch = new CountDownLatch(3);
 	static String managerToWorkersQueue = "managerToWorkersQueue",workersToManagerQueue="workersToManagerQueue",localAppToManagerQueue="localAppToManagerQueue",managerTolocalAppQueue="managerTolocalAppQueue-";
+	static Runtime runtime = Runtime.getRuntime();
+	static int mb = 1024*1024;
 	public static void main( String[] args ){
 
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
@@ -124,8 +126,7 @@ public class App {
 		s3 = new S3();
 		s3.launch(credentialsProvider);
 
-
-
+		
 		ec2 = AmazonEC2ClientBuilder.standard()
 				.withCredentials(credentialsProvider)
 				.withRegion("us-west-2")
@@ -153,12 +154,10 @@ public class App {
 			e.printStackTrace();
 		}
 
-		ArrayList<String> instancesIds = new ArrayList<String>();
-		for(Instance instance:workersIntances){
-			instancesIds.add(instance.getInstanceId());
-		}
+		ArrayList<String> workersInstancesIds = getWorkersInstancesIds();
+
 		TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest();
-		terminateInstancesRequest.setInstanceIds(instancesIds);
+		terminateInstancesRequest.setInstanceIds(workersInstancesIds);
 		TerminateInstancesResult terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
 
 		//Wait for instances to terminate
@@ -180,6 +179,30 @@ public class App {
 	}
 
 	////////////////////////////////////////////////////////////////////////////
+
+	private static ArrayList<String>  getWorkersInstancesIds(){
+		ArrayList<String> instancesIds = new ArrayList<String>();
+
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		List<String> filters = new ArrayList<String>();
+		filters.add("worker");
+		Filter filter = new Filter("tag-value", filters);
+
+		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
+
+		List<Reservation> reservations = result.getReservations();
+
+		for (Reservation reservation : reservations) {
+			List<Instance> instances = reservation.getInstances();
+
+			for (Instance instance : instances) {
+
+				instancesIds.add(instance.getInstanceId());
+			}
+		}
+		return instancesIds;
+	}
+
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
 		List<Message> messages = sqs.reciveMessages(localAppToManagerQueue);
@@ -223,20 +246,20 @@ public class App {
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
 		String sCurrentLine,movieTitle,reviewId,reviewText,reviewUrl;
-		
+
 		while(!localAppDownloadedInputFiles.isEmpty()){
-		S3Object fileInputObject = localAppDownloadedInputFiles.poll();
-		System.out.println("sending review from new input file - " + fileInputObject);
+			S3Object fileInputObject = localAppDownloadedInputFiles.poll();
+			System.out.println("sending reviews from new input file - " + fileInputObject);
 			numberOfreviews = 0;
-			movieTitle = null;
-		    reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
+			movieTitle = fileInputObject.getBucketName()+"@@@" + fileInputObject.getKey();
+			reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
 			try {
 				while ((sCurrentLine = reader.readLine()) != null) {
 
 					jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
 					jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
-					movieTitle = fileInputObject.getBucketName()+"@@@" + fileInputObject.getKey();
+
 					for(JsonElement review:  jsonReviews) {
 						reviewId = ((JsonObject) review).get("id").getAsString();
 						reviewText = ((JsonObject) review).get("text").getAsString();
@@ -246,13 +269,11 @@ public class App {
 						inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,0));
 
 						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
-						System.out.println("send review number - " +numberOfreviews);
+					
 						if(numberOfreviews == inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker()){
 							numberOfreviews = 0;
 							numberOfWorkersToCreate++;
-							System.out.println("Number of workers to create - " + numberOfWorkersToCreate + "\nworkersIntances.size() - " + workersIntances.size() + "\ninputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker() - " + inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker());
-							System.out.println();
-							if(numberOfWorkersToCreate > workersIntances.size()){
+							if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
 								createWorkers(1);
 							}
 						}
@@ -264,9 +285,7 @@ public class App {
 				if(numberOfreviews != 0){
 					numberOfreviews = 0;
 					numberOfWorkersToCreate++;
-					System.out.println("Last one - Number of workers to create - " + numberOfWorkersToCreate + "\nworkersIntances.size() - " + workersIntances.size() + "\ninputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker() - " + inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker());
-					System.out.println();
-					if(numberOfWorkersToCreate > workersIntances.size()){
+					if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
 						createWorkers(1);
 					}
 				}
@@ -280,18 +299,19 @@ public class App {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} 
-
+			
+			inputFileHashmap.get(movieTitle).setDoneSending(true);
 		}
-			if(reader != null)
-				try {
-					System.out.println();
-					System.out.println("close reader!!!");
-					System.out.println();
-					reader.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+		if(reader != null)
+			try {
+				System.out.println();
+				System.out.println("close reader!!!");
+				System.out.println();
+				reader.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 	}
 
 	public static void createWorkers(int numberOfWorkersToCreate){
@@ -300,15 +320,20 @@ public class App {
 
 			request.setInstanceType(InstanceType.T2Medium.toString());
 			request.setUserData(getUserDataScript());
+			int numberOfcurrentWorkers = getWorkersInstancesIds().size();
 			List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
-
+			ArrayList<Tag> tags = new ArrayList<Tag>();
+			Tag t = new Tag();
+			t.setKey("role");
+			t.setValue("worker");
+			tags.add(t);
+			CreateTagsRequest ctr = new CreateTagsRequest();
+			ctr.setTags(tags);
 			for (Instance instance : instances) {
-				workersIntances.add(instance);
-				ArrayList<Tag> tags = new ArrayList<Tag>();
-				tags.add(new Tag("worker" + workersIntances.size()));
-				instance.setTags(tags);
+				ctr.withResources(instance.getInstanceId());
+				ec2.createTags(ctr);
 			}
-			System.out.println("Launch instances: " + instances);
+			//System.out.println("Launch instances: " + instances);
 
 		} catch (AmazonServiceException ase) {
 			System.out.println("Caught Exception: " + ase.getMessage());
@@ -323,21 +348,16 @@ public class App {
 		String movieTitle,reviewId,reviewSentiment,reviewEntities;
 
 		for(Message message:messages){
+				
+			//System.out.println("##### Heap utilization statistics [MB] #####" + (runtime.totalMemory() - runtime.freeMemory()) / mb);
+
 			if(message.getBody().split("###")[0].equals("reviewAnalyzeComplete")) {
 				movieTitle = message.getBody().split("###")[1];
 				reviewId = message.getBody().split("###")[2];
 				reviewSentiment = message.getBody().split("###")[3];
 				reviewEntities = message.getBody().split("###")[4];
 				//update reviewsHashmap
-				System.out.println("---------------ReviewHashMap to specific movie ---------------");
-				System.out.println();
-				System.out.println(inputFileHashmap.get(movieTitle).getReviewsHashMap());
-				System.out.println();
-				System.out.println("---------------------------------------------------------------");
-				System.out.println();
-				System.out.println(inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId));
-				System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reviewid" + reviewId);
-				System.out.println();
+				
 				inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
 				inputFileHashmap.get(movieTitle).incNumberOfAnalyzedReviews();
 
@@ -345,7 +365,8 @@ public class App {
 				sqs.deleteMessages(Collections.singletonList(message),workersToManagerQueue);
 
 				//check if all this movie reviews are analyzed and create file if so
-				if(inputFileHashmap.get(movieTitle).getNumberOfAnalyzedReviews() == inputFileHashmap.get(movieTitle).getReviewsHashMap().size()){
+				if(inputFileHashmap.get(movieTitle).isDoneSending() && inputFileHashmap.get(movieTitle).getNumberOfAnalyzedReviews() == inputFileHashmap.get(movieTitle).getReviewsHashMap().size()){
+					System.out.println("finish analyze file size : " + inputFileHashmap.get(movieTitle).getReviewsHashMap().size());
 					Thread worker = new SenderLocalAppQueue(movieTitle);
 					executor.execute(worker);
 				}

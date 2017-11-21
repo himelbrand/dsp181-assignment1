@@ -32,7 +32,7 @@ public class App {
 	private static boolean terminate = false; 
 	public static void main(String[] args) throws IOException {
 
-    	BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
+		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
 
 		credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
 		ec2 = AmazonEC2ClientBuilder.standard()
@@ -74,7 +74,7 @@ public class App {
 				downloadResulstAndCreateHtml(responseCompleteFilesKeys);
 		}
 
-		
+
 	}
 
 	private static void launchManagerNode(){
@@ -104,23 +104,20 @@ public class App {
 				// Basic 32-bit Amazon Linux AMI 1.0 (AMI Id: ami-08728661)
 				RunInstancesRequest request = new RunInstancesRequest("ami-0a00ce72", 1, 1);
 
-				request.setInstanceType(InstanceType.T2Medium.toString());
+				request.setInstanceType(InstanceType.T2Large.toString());
 				request.setUserData(getUserDataScript());
 
-				List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
+				Instance instance = ec2.runInstances(request).getReservation().getInstances().get(0);
+				ArrayList<Tag> tags = new ArrayList<Tag>();
+				Tag t = new Tag();
+				t.setKey("role");
+				t.setValue("manager");
+				tags.add(t);
+				CreateTagsRequest ctr = new CreateTagsRequest();
+				ctr.setTags(tags);
+				ctr.withResources(instance.getInstanceId());
+				ec2.createTags(ctr);
 
-				for (Instance instance : instances) {
-					ArrayList<Tag> tags = new ArrayList<Tag>();
-					Tag t = new Tag();
-					t.setKey("role");
-					t.setValue("manager");
-					tags.add(t);
-					
-					CreateTagsRequest ctr = new CreateTagsRequest();
-					ctr.setTags(tags);
-					ctr.withResources(instance.getInstanceId());
-					ec2.createTags(ctr);
-				}
 				//System.out.println("Launch instances: " + instances);
 
 			} catch (AmazonServiceException ase) {
@@ -147,9 +144,9 @@ public class App {
 		messages = sqs.reciveMessages();
 		for(Message message:messages){
 			//if(message.getBody().split("###")[0].equals("completeFileMessage") && (message.getBody().split("###")[2].equals(uuid.toString()))) {
-				responseKeys.add(message.getBody().split("###")[1]);
-				// delete the "processComplete" message
-				sqs.deleteMessages(Collections.singletonList(message));
+			responseKeys.add(message.getBody().split("###")[1]);
+			// delete the "processComplete" message
+			sqs.deleteMessages(Collections.singletonList(message));
 			//}
 			System.out.println("waiting for process complete message, another 20 sec");
 		}
@@ -195,7 +192,7 @@ public class App {
 					}
 					htmlBuilder.append("</br>");
 					htmlBuilder.append("<a href=\"" +  jobj.get("url").getAsString() + "\"> <div style=\"color:"+color +";\">"  + jobj.get("review").getAsString() + " " + jobj.get("entities").getAsString() + " </div></a>");
-					
+
 				}
 				htmlBuilder.append("</body></html>");
 				PrintWriter writer = new PrintWriter(responseObject.getKey()+ ".html" , "UTF-8");
