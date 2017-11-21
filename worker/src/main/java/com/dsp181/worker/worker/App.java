@@ -25,7 +25,7 @@ public class App
 		NLPClass nlp = new NLPClass();
 		//get messages from SQS queue
 		while(true){
-			List<Message> messages = sqs.reciveMessages("workersQueueSend");
+			List<Message> messages = sqs.reciveMessages("managerToWorkersQueue");
 			for(Message message:messages){
 				if(message.getBody().split("###")[0].equals("reviewMessage")) {
 					sentiment = nlp.findSentiment(message.getBody().split("###")[3]);
@@ -34,9 +34,9 @@ public class App
 							+ message.getBody().split("###")[1] + "###"
 							+ message.getBody().split("###")[2] + "###"
 							+ sentiment + "###"
-							+ entities, "workersQueue");
+							+ entities, "workersToManagerQueue");
 					// delete the message from queue
-					sqs.deleteMessages(Collections.singletonList(message),"workersQueueReceive");
+					sqs.deleteMessages(Collections.singletonList(message),"managerToWorkersQueue");
 
 				}
 			}
