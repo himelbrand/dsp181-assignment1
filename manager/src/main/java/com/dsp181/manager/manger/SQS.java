@@ -85,7 +85,7 @@ public class SQS {
     }
     public void sendMessage(String message,String queueUrl) {
         // Send a message
-        System.out.println("Sending a message to " + queueUrl + ".\n");
+        //System.out.println("Sending a message to " + queueUrl + ".\n");
         sqs.sendMessage(new SendMessageRequest(queueUrl, message));
     }
     

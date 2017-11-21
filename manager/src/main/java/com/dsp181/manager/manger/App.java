@@ -223,10 +223,13 @@ public class App {
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
 		String sCurrentLine,movieTitle,reviewId,reviewText,reviewUrl;
-		for(S3Object fileInputObject: localAppDownloadedInputFiles){
+		
+		while(!localAppDownloadedInputFiles.isEmpty()){
+		S3Object fileInputObject = localAppDownloadedInputFiles.poll();
+		System.out.println("sending review from new input file - " + fileInputObject);
 			numberOfreviews = 0;
 			movieTitle = null;
-			reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
+		    reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
 			try {
 				while ((sCurrentLine = reader.readLine()) != null) {
 
@@ -234,17 +237,16 @@ public class App {
 					jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
 					movieTitle = fileInputObject.getBucketName()+"@@@" + fileInputObject.getKey();
-					System.out.println("send messages to workersqueue , movieTitle:" + movieTitle);
 					for(JsonElement review:  jsonReviews) {
-						reviewId = ((JsonObject) review).get("id").toString();
-						reviewText = ((JsonObject) review).get("text").toString();
-						reviewUrl = ((JsonObject) review).get("link").toString();
+						reviewId = ((JsonObject) review).get("id").getAsString();
+						reviewText = ((JsonObject) review).get("text").getAsString();
+						reviewUrl = ((JsonObject) review).get("link").getAsString();
 						numberOfreviews++;
 
 						inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,0));
 
 						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
-
+						System.out.println("send review number - " +numberOfreviews);
 						if(numberOfreviews == inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker()){
 							numberOfreviews = 0;
 							numberOfWorkersToCreate++;
@@ -259,6 +261,15 @@ public class App {
 
 				}
 
+				if(numberOfreviews != 0){
+					numberOfreviews = 0;
+					numberOfWorkersToCreate++;
+					System.out.println("Last one - Number of workers to create - " + numberOfWorkersToCreate + "\nworkersIntances.size() - " + workersIntances.size() + "\ninputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker() - " + inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker());
+					System.out.println();
+					if(numberOfWorkersToCreate > workersIntances.size()){
+						createWorkers(1);
+					}
+				}
 
 
 
@@ -268,17 +279,19 @@ public class App {
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			} finally {
-				if(reader != null)
-					try {
-						reader.close();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-			}
+			} 
 
 		}
+			if(reader != null)
+				try {
+					System.out.println();
+					System.out.println("close reader!!!");
+					System.out.println();
+					reader.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 	}
 
 	public static void createWorkers(int numberOfWorkersToCreate){
@@ -316,7 +329,15 @@ public class App {
 				reviewSentiment = message.getBody().split("###")[3];
 				reviewEntities = message.getBody().split("###")[4];
 				//update reviewsHashmap
-
+				System.out.println("---------------ReviewHashMap to specific movie ---------------");
+				System.out.println();
+				System.out.println(inputFileHashmap.get(movieTitle).getReviewsHashMap());
+				System.out.println();
+				System.out.println("---------------------------------------------------------------");
+				System.out.println();
+				System.out.println(inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId));
+				System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reviewid" + reviewId);
+				System.out.println();
 				inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
 				inputFileHashmap.get(movieTitle).incNumberOfAnalyzedReviews();
 

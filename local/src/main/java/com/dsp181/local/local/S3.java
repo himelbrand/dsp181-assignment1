@@ -142,13 +142,14 @@ public class S3 {
              * ETags, and selectively downloading a range of an object.
              */
 
-        System.out.println("Downloading an object");
+        
         ArrayList<S3Object> s3ObjectList = new ArrayList<S3Object>();
         for (String key : keys) {
+        	System.out.println("Downloading an object, key : "+ keys);
             S3Object object = s3.getObject(new GetObjectRequest(bucketName, key));
             s3ObjectList.add(object);
-            System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
-            displayTextInputStream(object.getObjectContent());
+            //System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
+            //displayTextInputStream(object.getObjectContent());
         }
         return s3ObjectList;
     }

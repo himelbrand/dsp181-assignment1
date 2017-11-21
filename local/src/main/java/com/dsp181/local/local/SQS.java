@@ -1,5 +1,6 @@
 package com.dsp181.local.local;
 
+import java.util.HashMap;
 /*
  * Copyright 2010-2012 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
@@ -15,6 +16,7 @@ package com.dsp181.local.local;
  * permissions and limitations under the License.
  */
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 //import java.util.UUID;
 import java.util.Map.Entry;
@@ -80,10 +82,13 @@ public class SQS {
             		myQueueUrlReceive = queueUrl;
             	}
             }
+            Map<String, String> attributes = new HashMap<String, String>();
+            attributes.put("FifoQueue", "true");
+            
             if(!foundLocalAppQueueSend){
             System.out.println();
             System.out.println("Creating a new SQS queue called localAppToManagerQueue.\n");
-            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppToManagerQueue");
+            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppToManagerQueue");//.withAttributes(attributes);
             myQueueUrlSend = sqs.createQueue(createQueueRequest).getQueueUrl();
             }
             if(!foundLocalAppQueueReceive){
@@ -92,7 +97,8 @@ public class SQS {
             CreateQueueRequest createQueueRequest = new CreateQueueRequest("managerTolocalAppQueue-"+uuid);
             myQueueUrlReceive = sqs.createQueue(createQueueRequest).getQueueUrl();
             }
-
+            
+            
 
         }catch (AmazonServiceException ase) {
             System.out.println("Caught an AmazonServiceException, which means your request made it " +

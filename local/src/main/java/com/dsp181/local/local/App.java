@@ -176,24 +176,34 @@ public class App {
 				while((line = reader.readLine()) != null) {
 					jelem = gson.fromJson(line, JsonElement.class);
 					jobj = jelem.getAsJsonObject();
-
-					switch(Integer.parseInt(jobj.get("sentiment").getAsString())){
+					System.out.println("color number - " + jobj.get("sentiment").toString());
+					System.out.println("color number - " + jobj.get("sentiment").getAsString());
+					System.out.printf("color number - %d" , jobj.get("sentiment").getAsInt());
+					switch(Integer.parseInt(jobj.get("sentiment").toString())){
 					case 0: color = "DarkRed";
+					break;
 					case 1: color = "red";
+					break;
 					case 2: color = "black";
+					break;
 					case 3: color = "LightGreen";
+					break;
 					case 4: color = "DarkGreen";
+					break;
 					default: color = "yellow";
+					break;
 					}
+					htmlBuilder.append("</br>");
 					htmlBuilder.append("<a href=\"" +  jobj.get("url").getAsString() + "\"> <div style=\"color:"+color +";\">"  + jobj.get("review").getAsString() + " " + jobj.get("entities").getAsString() + " </div></a>");
+					
 				}
 				htmlBuilder.append("</body></html>");
 				PrintWriter writer = new PrintWriter(responseObject.getKey()+ ".html" , "UTF-8");
 				writer.print(htmlBuilder);
 				ArrayList<String> tempArrayList = new ArrayList<String>();
 				tempArrayList.add(responseObject.getKey()+ ".html");
-				s3.uploadFiles(tempArrayList);
 				writer.close();
+				s3.uploadFiles(tempArrayList);
 				System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
 
 			}
