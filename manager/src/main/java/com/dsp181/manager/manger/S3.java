@@ -42,7 +42,7 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 public class S3 {
 
     private AmazonS3 s3;
-    public void launch(AWSCredentialsProvider credentialsProvider,UUID uuid) {
+    public void launch(AWSCredentialsProvider credentialsProvider) {
         /*
          * Important: Be sure to fill in your AWS access credentials in the
          *            AwsCredentials.properties file before you try to run this
@@ -86,13 +86,14 @@ public class S3 {
              * ETags, and selectively downloading a range of an object.
              */
 
-        System.out.println("Downloading an object");
+
         ArrayList<S3Object> s3ObjectList = new ArrayList<S3Object>();
         for (Map.Entry<String,String> entry : keysAndBuckets.entrySet()) {
+        	System.out.println("Download object file key : " + entry.getKey() + " | bucketName : " + entry.getValue());
             S3Object object = s3.getObject(new GetObjectRequest(entry.getValue().toString(), entry.getKey().toString()));
             s3ObjectList.add(object);
-            System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
-            displayTextInputStream(object.getObjectContent());
+            //System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
+            //displayTextInputStream(object.getObjectContent());
         }
         return s3ObjectList;
     }

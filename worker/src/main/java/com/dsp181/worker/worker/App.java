@@ -3,13 +3,9 @@ package com.dsp181.worker.worker;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.sqs.model.Message;
 
-import edu.stanford.nlp.util.Pair;
 
 /**
  * Hello world!
@@ -23,12 +19,13 @@ public class App
 	public static void main( String[] args )
 	{
 		sqs = new SQS();
+		sqs.launch();
 		int sentiment;
 		ArrayList<String> entities;
 		NLPClass nlp = new NLPClass();
 		//get messages from SQS queue
 		while(true){
-			List<Message> messages = sqs.reciveMessages("workersQueue");
+			List<Message> messages = sqs.reciveMessages("workersQueueSend");
 			for(Message message:messages){
 				if(message.getBody().split("###")[0].equals("reviewMessage")) {
 					sentiment = nlp.findSentiment(message.getBody().split("###")[3]);
@@ -39,7 +36,7 @@ public class App
 							+ sentiment + "###"
 							+ entities, "workersQueue");
 					// delete the message from queue
-					sqs.deleteMessages(Collections.singletonList(message),"localAppQueue");
+					sqs.deleteMessages(Collections.singletonList(message),"workersQueueReceive");
 
 				}
 			}

@@ -21,6 +21,8 @@ import java.util.Map.Entry;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
@@ -46,9 +48,10 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 public class SQS {
     private AmazonSQS sqs;
 
-    public  void launch(AWSCredentialsProvider credentialsProvider) {
+    public  void launch() {
+    	BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
         sqs = AmazonSQSClientBuilder.standard()
-                .withCredentials(credentialsProvider)
+                .withCredentials(new AWSStaticCredentialsProvider(awsCreds))
                 .withRegion("us-west-2")
                 .build();
     }
@@ -59,7 +62,7 @@ public class SQS {
     		   
                System.out.println();
                System.out.println("Creating a new SQS queue called " + queueUrl + ".\n");
-               CreateQueueRequest createQueueRequest = new CreateQueueRequest(queueUrl);
+               new CreateQueueRequest(queueUrl);
                
             }catch (AmazonServiceException ase) {
                System.out.println("Caught an AmazonServiceException, which means your request made it " +

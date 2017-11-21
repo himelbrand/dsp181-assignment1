@@ -59,7 +59,7 @@ public class S3 {
                 .build();
 
         bucketName =
-                credentialsProvider.getCredentials().getAWSAccessKeyId() + "-Ass1Bucket-uuid" + uuid;
+                "Ass1Bucket-" + uuid;
         bucketName = bucketName.toLowerCase();
 
         System.out.println("===========================================");

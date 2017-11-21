@@ -15,7 +15,7 @@ package com.dsp181.local.local;
  * permissions and limitations under the License.
  */
 import java.util.List;
-
+import java.util.UUID;
 //import java.util.UUID;
 import java.util.Map.Entry;
 
@@ -46,8 +46,9 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
  */
 public class SQS {
     private AmazonSQS sqs;
-    private String myQueueUrl;
-    public  void launch(AWSCredentialsProvider credentialsProvider) {
+    private String myQueueUrlSend;
+    private String myQueueUrlReceive;
+    public  void launch(AWSCredentialsProvider credentialsProvider,UUID uuid) {
         /*
          * Important: Be sure to fill in your AWS access credentials in the
          *            AwsCredentials.properties file before you try to run this
@@ -65,23 +66,32 @@ public class SQS {
         System.out.println("===========================================\n");
 
         try {
-            // Create a new "localAppQueue" if it does not exist
+            // Create a new "localAppQueueSend" "localAppQueueRecive" if it does not exist
             System.out.println("Listing all queues in your account.\n");
-            boolean foundLocalAppQueue = false;
+            boolean foundLocalAppQueueSend=false,foundLocalAppQueueReceive = false;
             for (String queueUrl : sqs.listQueues().getQueueUrls()) {
             	System.out.println("  QueueUrl: " + queueUrl);
-            	if(queueUrl.equals("localAppQueue")){
-            		foundLocalAppQueue = true;
-            		myQueueUrl = queueUrl;
+            	if(queueUrl.equals("localAppToManagerQueue")){
+            		foundLocalAppQueueSend = true;
+            		myQueueUrlSend = queueUrl;
+            	}
+            	if(queueUrl.equals("managerTolocalAppQueue-"+uuid)){
+            		foundLocalAppQueueReceive = true;
+            		myQueueUrlReceive = queueUrl;
             	}
             }
-            if(!foundLocalAppQueue){
+            if(!foundLocalAppQueueSend){
             System.out.println();
-            System.out.println("Creating a new SQS queue called MyQueue.\n");
-            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppQueue");
-            myQueueUrl = sqs.createQueue(createQueueRequest).getQueueUrl();
+            System.out.println("Creating a new SQS queue called localAppToManagerQueue.\n");
+            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppToManagerQueue");
+            myQueueUrlSend = sqs.createQueue(createQueueRequest).getQueueUrl();
             }
-
+            if(!foundLocalAppQueueReceive){
+            System.out.println();
+            System.out.println("Creating a new SQS queue called " + "managerTolocalAppQueue-"+uuid + ".\n");
+            CreateQueueRequest createQueueRequest = new CreateQueueRequest("managerTolocalAppQueue-"+uuid);
+            myQueueUrlReceive = sqs.createQueue(createQueueRequest).getQueueUrl();
+            }
 
 
         }catch (AmazonServiceException ase) {
@@ -102,13 +112,14 @@ public class SQS {
 
     public void sendMessage(String message) {
         // Send a message
-        System.out.println("Sending a message to MyQueue.\n");
-        sqs.sendMessage(new SendMessageRequest(myQueueUrl, message));
+        System.out.println("Sending a message to " + myQueueUrlSend + ".\n");
+        sqs.sendMessage(new SendMessageRequest(myQueueUrlSend, message));
     }
+    
     public List<Message> reciveMessages() {
         // Receive messages
-        System.out.println("Receiving messages from MyQueue.\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrl).withQueueUrl(myQueueUrl).withWaitTimeSeconds(20);
+        System.out.println("Receiving messages from " + myQueueUrlReceive + " .\n");
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlReceive).withQueueUrl(myQueueUrlReceive).withWaitTimeSeconds(20).withMaxNumberOfMessages(1);
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
@@ -132,28 +143,12 @@ public class SQS {
         // Delete a message
         System.out.println("Deleting a message.\n");
         String messageRecieptHandle = messages.get(0).getReceiptHandle();
-        sqs.deleteMessage(new DeleteMessageRequest(myQueueUrl, messageRecieptHandle));
+        sqs.deleteMessage(new DeleteMessageRequest(myQueueUrlReceive, messageRecieptHandle));
     }
 
-    public void deleteQueue() {
+    public void deleteQueue(String queueName) {
         // Delete a queue
         System.out.println("Deleting the test queue.\n");
-        sqs.deleteQueue(new DeleteQueueRequest(myQueueUrl));
+        sqs.deleteQueue(new DeleteQueueRequest(queueName));
     }
-
-     /*   } catch (AmazonServiceException ase) {
-            System.out.println("Caught an AmazonServiceException, which means your request made it " +
-                    "to Amazon SQS, but was rejected with an error response for some reason.");
-            System.out.println("Error Message:    " + ase.getMessage());
-            System.out.println("HTTP Status Code: " + ase.getStatusCode());
-            System.out.println("AWS Error Code:   " + ase.getErrorCode());
-            System.out.println("Error Type:       " + ase.getErrorType());
-            System.out.println("Request ID:       " + ase.getRequestId());
-        } catch (AmazonClientException ace) {
-            System.out.println("Caught an AmazonClientException, which means the client encountered " +
-                    "a serious internal problem while trying to communicate with SQS, such as not " +
-                    "being able to access the network.");
-            System.out.println("Error Message: " + ace.getMessage());
-        }
-   */
 }

@@ -2,8 +2,10 @@ package com.dsp181.local.local;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 //import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.model.S3Object;
@@ -26,10 +28,17 @@ public class App {
 	private static UUID uuid;
 	private static SQS sqs;
 	private static S3 s3;
+	private static int numberOfFilesPerWorker =0;
+	private static boolean terminate = false; 
 	public static void main(String[] args) throws IOException {
 
+    	BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
 
-		credentialsProvider = new AWSStaticCredentialsProvider(new ProfileCredentialsProvider().getCredentials());
+		credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
+		ec2 = AmazonEC2ClientBuilder.standard()
+				.withCredentials(credentialsProvider)
+				.withRegion("us-west-2")
+				.build();
 
 		uuid = UUID.randomUUID();
 
@@ -37,59 +46,35 @@ public class App {
 		s3.launch(credentialsProvider,uuid);
 
 		sqs = new SQS();
-		sqs.launch(credentialsProvider);
+		sqs.launch(credentialsProvider,uuid);
 
 
 		// get details from args array
-		ArrayList<String> filesPathArray = new ArrayList<String>();
-		boolean terminate = false;
-		int numberOfFilesPerWorker = 0,numberOfFiles=args.length;
-		if(args[args.length - 1].equals("terminate")){
-			terminate = true;
-			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 2]);
-			numberOfFiles -= 2;
-		}
-		else{
-			numberOfFiles -= 1;
-			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 1]);
-		}
-		for(int i=0;i<numberOfFiles;i++){
-			filesPathArray.add(args[i]);
-		}
+		ArrayList<String> filesPathArray = getArgsDetails(args);
 
 		// check if the manager node is active and run it otherwise
 		launchManagerNode();
-		
+
 		// set S3 storage and upload files
 		ArrayList<String> filesKeys = s3.uploadFiles(filesPathArray);
 		int remainingFiles = filesKeys.size();
 		sendInputFilesLocation(filesKeys,numberOfFilesPerWorker);
-		
+
 		// send termination message
 		if(terminate)
 			sqs.sendMessage("terminate");
-		
+
 		// check for message "completeFileMessage"
 		while(remainingFiles > 0){ 
 			ArrayList<String> responseCompleteFilesKeys = checkForCompleteFileMessage();
+			//
 			remainingFiles -= responseCompleteFilesKeys.size();
 			// download files from S3 and create html file
-			downloadResulstAndCreateHtml(responseCompleteFilesKeys);
+			if(responseCompleteFilesKeys.size() > 0)
+				downloadResulstAndCreateHtml(responseCompleteFilesKeys);
 		}
 
-		//send a termination message to the manager mode
-		// TODO check how its need to be supplied as one of the input argument
-		sqs.sendMessage("termination###"+ uuid);
-
-
-
-
-
-
-
-
-
-
+		
 	}
 
 	private static void launchManagerNode(){
@@ -102,7 +87,7 @@ public class App {
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
 					for(Tag tag :instance.getTags()){
-						if(tag.getKey().equals("manager"))
+						if(tag.getValue().equals("manager"))
 							found = true;
 					}
 				}
@@ -114,21 +99,29 @@ public class App {
 			}
 		}
 		if(!found) {
+			System.out.println("Create manager node!");
 			try {
 				// Basic 32-bit Amazon Linux AMI 1.0 (AMI Id: ami-08728661)
-				RunInstancesRequest request = new RunInstancesRequest("ami-6057e21a", 1, 1);
+				RunInstancesRequest request = new RunInstancesRequest("ami-0a00ce72", 1, 1);
 
-				request.setInstanceType(InstanceType.T2Micro.toString());
+				request.setInstanceType(InstanceType.T2Medium.toString());
 				request.setUserData(getUserDataScript());
 
 				List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
 
 				for (Instance instance : instances) {
 					ArrayList<Tag> tags = new ArrayList<Tag>();
-					tags.add(new Tag("manager"));
-					instance.setTags(tags);
+					Tag t = new Tag();
+					t.setKey("role");
+					t.setValue("manager");
+					tags.add(t);
+					
+					CreateTagsRequest ctr = new CreateTagsRequest();
+					ctr.setTags(tags);
+					ctr.withResources(instance.getInstanceId());
+					ec2.createTags(ctr);
 				}
-				System.out.println("Launch instances: " + instances);
+				//System.out.println("Launch instances: " + instances);
 
 			} catch (AmazonServiceException ase) {
 				System.out.println("Caught Exception: " + ase.getMessage());
@@ -136,12 +129,14 @@ public class App {
 				System.out.println("Error Code: " + ase.getErrorCode());
 				System.out.println("Request ID: " + ase.getRequestId());
 			}
+		}else{
+			System.out.println("Manager node already running ###");
 		}
 	}
 
 	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
 		for(String fileKey:filesKeys){
-			sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker);
+			sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
 		System.out.println();
 	}
@@ -151,12 +146,11 @@ public class App {
 		ArrayList<String> responseKeys = new ArrayList<String>();
 		messages = sqs.reciveMessages();
 		for(Message message:messages){
-			if(message.getBody().split("###")[0].equals("completeFileMessage")) {
+			//if(message.getBody().split("###")[0].equals("completeFileMessage") && (message.getBody().split("###")[2].equals(uuid.toString()))) {
 				responseKeys.add(message.getBody().split("###")[1]);
 				// delete the "processComplete" message
 				sqs.deleteMessages(Collections.singletonList(message));
-				break;
-			}
+			//}
 			System.out.println("waiting for process complete message, another 20 sec");
 		}
 		return responseKeys;
@@ -210,27 +204,45 @@ public class App {
 
 	}
 	private static String getUserDataScript(){
-        ArrayList<String> lines = new ArrayList<String>();
-        lines.add("#! /bin/bash");
-        lines.add("sudo apt-get update");
-        lines.add("sudo apt-get install openjdk-8-jre-headless -y");
-        lines.add("sudo apt-get install wget -y");
-        lines.add("sudo wget managerJarURL.jar -O manager.jar");
-        lines.add("java -jar manager.jar");
-        String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
-        return str;
-    }
+		ArrayList<String> lines = new ArrayList<String>();
+		lines.add("#! /bin/bash");
+		lines.add("sudo apt-get update");
+		lines.add("sudo apt-get install openjdk-8-jre-headless -y");
+		lines.add("sudo apt-get install wget -y");
+		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/manger-0.0.1-SNAPSHOT.jar -O manager.jar");
+		lines.add("java -jar manager.jar");
+		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
+		return str;
+	}
 
-    private static String join(Collection<String> s, String delimiter) {
-        StringBuilder builder = new StringBuilder();
-        Iterator<String> iter = s.iterator();
-        while (iter.hasNext()) {
-            builder.append(iter.next());
-            if (!iter.hasNext()) {
-                break;
-            }
-            builder.append(delimiter);
-        }
-        return builder.toString();
-    }
+	private static String join(Collection<String> s, String delimiter) {
+		StringBuilder builder = new StringBuilder();
+		Iterator<String> iter = s.iterator();
+		while (iter.hasNext()) {
+			builder.append(iter.next());
+			if (!iter.hasNext()) {
+				break;
+			}
+			builder.append(delimiter);
+		}
+		return builder.toString();
+	}
+
+	private static ArrayList<String> getArgsDetails(String[] args){
+		ArrayList<String> filesPathArray = new ArrayList<String>();
+		int numberOfFiles=args.length;
+		if(args[args.length - 1].equals("terminate")){
+			terminate = true;
+			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 2]);
+			numberOfFiles -= 2;
+		}
+		else{
+			numberOfFiles -= 1;
+			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 1]);
+		}
+		for(int i=0;i<numberOfFiles;i++){
+			filesPathArray.add(args[i]);
+		}
+		return filesPathArray;
+	}
 }

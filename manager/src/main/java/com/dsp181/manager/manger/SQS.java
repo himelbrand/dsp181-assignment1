@@ -61,6 +61,8 @@ public class SQS {
                System.out.println();
                System.out.println("Creating a new SQS queue called " + queueUrl + ".\n");
                CreateQueueRequest createQueueRequest = new CreateQueueRequest(queueUrl);
+                String myqueue = sqs.createQueue(createQueueRequest).getQueueUrl();
+              
                
             }catch (AmazonServiceException ase) {
                System.out.println("Caught an AmazonServiceException, which means your request made it " +
@@ -75,7 +77,10 @@ public class SQS {
                        "a serious internal problem while trying to communicate with SQS, such as not " +
                        "being able to access the network.");
                System.out.println("Error Message: " + ace.getMessage());
-           }
+           } catch (Exception e) {
+        	   System.out.println(e.getMessage());
+			// TODO: handle exception
+		}
     	
     }
     public void sendMessage(String message,String queueUrl) {
@@ -91,6 +96,9 @@ public class SQS {
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
+
+    
+    
     public void printMessages(List<Message> messages){
         for (Message message : messages) {
             System.out.println("  Message");
@@ -113,7 +121,7 @@ public class SQS {
         String messageRecieptHandle = messages.get(0).getReceiptHandle();
         sqs.deleteMessage(new DeleteMessageRequest(queueUrl, messageRecieptHandle));
     }
-
+    
     public void deleteQueue(String queueUrl) {
         // Delete a queue
         System.out.println("Deleting the test queue.\n");

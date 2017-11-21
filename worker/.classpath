@@ -22,13 +22,9 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="ejml-0.23.jar"/>
-	<classpathentry kind="lib" path="jollyday-0.4.7.jar"/>
 	<classpathentry kind="lib" path="stanford-corenlp-3.3.0-models.jar"/>
 	<classpathentry kind="lib" path="stanford-corenlp-3.3.0.jar"/>
-	<classpathentry kind="lib" path="jars/ejml-0.23.jar"/>
-	<classpathentry kind="lib" path="jars/jollyday-0.4.7.jar"/>
-	<classpathentry kind="lib" path="jars/stanford-corenlp-3.3.0-models.jar"/>
-	<classpathentry kind="lib" path="jars/stanford-corenlp-3.3.0.jar"/>
+	<classpathentry kind="lib" path="ejml-0.23.jar"/>
+	<classpathentry kind="lib" path="jollyday-0.4.7.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

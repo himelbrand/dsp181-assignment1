@@ -7,13 +7,13 @@ public class Review {
 	private String url;
 	private int sentiment;
 	private String entities;
-	public Review(String id,String review,String url,int sentiment,String entities)
+	public Review(String id,String review,String url,int sentiment)
 	{
 		this.url = url;
 		this.id = id;
 		this.review = review;
 		this.sentiment = sentiment;
-		this.entities = entities;
+		this.entities = null;
 	}
 	public String getUrl() {
 		return url;
