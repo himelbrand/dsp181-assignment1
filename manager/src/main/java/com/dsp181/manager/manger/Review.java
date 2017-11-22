@@ -5,8 +5,8 @@ public class Review {
 	private String id;
 	private String review;
 	private String url;
-	private int sentiment;
-	private String entities;
+	private int sentiment = -1;
+	private String entities = null;
 	public Review(String id,String review,String url,int sentiment)
 	{
 		this.url = url;

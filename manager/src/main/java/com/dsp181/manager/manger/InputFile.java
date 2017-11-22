@@ -5,9 +5,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InputFile {
-	int numberOfAnalyzedReviews;
-	ConcurrentHashMap<String, Review> reviewsHashMap;
-	String uuid;
+	int numberOfAnalyzedReviews=0;
+	ConcurrentHashMap<String, Review> reviewsHashMap = null;
+	String uuid ="";
 	int numberOfFilesPerWorker =0;
 	boolean doneSending = false;
 	

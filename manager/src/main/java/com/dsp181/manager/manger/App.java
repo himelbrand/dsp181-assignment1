@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -40,6 +41,7 @@ import com.google.gson.JsonSyntaxException;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.kinesisanalytics.model.Input;
 
 /**
  * Hello world!
@@ -50,7 +52,7 @@ class ReciverLocalAppQueue extends  Thread {
 	public void run() {
 		while(!App.terminateLocalAppReciver){
 			HashMap<String, String> keysAndBucketsHashMap = App.retriveMessageFromLocalAppQueue();
-			App.localAppDownloadedInputFiles.addAll(App.retriveFilesFromS3(keysAndBucketsHashMap));
+			App.localAppDownloadedInputFiles.addAll(App.retriveFilesFromS3Local(keysAndBucketsHashMap));
 		}
 		App.terminateWorkersSender = true;
 		App.latch.countDown();
@@ -71,8 +73,9 @@ class SenderWorkerQueue extends  Thread {
 class ReceiverWorkerQueue extends  Thread {
 	@Override
 	public void run() {
-		while(!App.terminateWorkersSender || App.inputFileHashmap.size() > 0)
+		while(!App.terminateWorkersSender || App.inputFileHashmap.size() > 0){
 			App.retriveMessageFromWorkersQueue();
+		}
 		App.executor.shutdown();
 		while (!App.executor.isTerminated()) {
 		}
@@ -105,7 +108,7 @@ public class App {
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
 	static ConcurrentLinkedQueue<String> movieTitleArrayList = new ConcurrentLinkedQueue<String>(); 
-	static ConcurrentLinkedQueue<S3Object> localAppDownloadedInputFiles = new ConcurrentLinkedQueue<S3Object>(); 
+	static ConcurrentLinkedQueue<String> localAppDownloadedInputFiles = new ConcurrentLinkedQueue<String>(); 
 	static ArrayList<Thread> threadArrayList = new ArrayList<Thread>();;
 	static ExecutorService executor = Executors.newFixedThreadPool(1);
 	static CountDownLatch latch = new CountDownLatch(3);
@@ -126,7 +129,7 @@ public class App {
 		s3 = new S3();
 		s3.launch(credentialsProvider);
 
-		
+
 		ec2 = AmazonEC2ClientBuilder.standard()
 				.withCredentials(credentialsProvider)
 				.withRegion("us-west-2")
@@ -140,6 +143,7 @@ public class App {
 
 
 		threadArrayList.add(new ReciverLocalAppQueue());
+		threadArrayList.get(0).setPriority(Thread.MAX_PRIORITY);
 		threadArrayList.get(0).start();
 		threadArrayList.add(new SenderWorkerQueue());
 		threadArrayList.get(1).start();
@@ -185,7 +189,7 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("worker");
+		filters.add("worker3");
 		Filter filter = new Filter("tag-value", filters);
 
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
@@ -237,81 +241,71 @@ public class App {
 		}
 	}
 
+	public static ArrayList<String> retriveFilesFromS3Local(HashMap<String, String> keysAndBucketsHashMap){
+		try {
+			return s3.downloadFilesLocal(keysAndBucketsHashMap);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return null;
+		}
+	}
 
-	public static void sendMessagesToWorkersQueue(ConcurrentLinkedQueue<S3Object> localAppDownloadedInputFiles){
+
+	public static void sendMessagesToWorkersQueue(ConcurrentLinkedQueue<String> localAppDownloadedInputFiles){
 		int numberOfreviews =0;
 		int numberOfWorkersToCreate=0;
 		BufferedReader reader = null;
 		Gson gson = new Gson();
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
-		String sCurrentLine,movieTitle,reviewId,reviewText,reviewUrl;
+		String movieTitle,reviewId,reviewText,reviewUrl;
 
 		while(!localAppDownloadedInputFiles.isEmpty()){
-			S3Object fileInputObject = localAppDownloadedInputFiles.poll();
-			System.out.println("sending reviews from new input file - " + fileInputObject);
+			String fileInputString = localAppDownloadedInputFiles.poll();
+
+			int nnnnn = 0;
 			numberOfreviews = 0;
-			movieTitle = fileInputObject.getBucketName()+"@@@" + fileInputObject.getKey();
-			reader = new BufferedReader(new InputStreamReader(fileInputObject.getObjectContent()));
-			try {
-				while ((sCurrentLine = reader.readLine()) != null) {
+			String[] fileInputStringSplit = fileInputString.split("###");
+			movieTitle = fileInputStringSplit[0];
+			System.out.println("sending reviews from new input file - " + movieTitle);
+			for (String sCurrentLine :fileInputStringSplit[1].split("\n")) {
 
-					jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
-					jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
+				jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
+				jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
+				for(JsonElement review:  jsonReviews) {
+					reviewId = UUID.randomUUID().toString();
+					reviewText = ((JsonObject) review).get("text").getAsString();
+					reviewUrl = ((JsonObject) review).get("link").getAsString();
+					numberOfreviews++;
+					nnnnn++;
+					System.out.println("send message number - " + nnnnn + "   |   " + reviewId);
+					inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
 
-					for(JsonElement review:  jsonReviews) {
-						reviewId = ((JsonObject) review).get("id").getAsString();
-						reviewText = ((JsonObject) review).get("text").getAsString();
-						reviewUrl = ((JsonObject) review).get("link").getAsString();
-						numberOfreviews++;
+					sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
 
-						inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,0));
-
-						sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
-					
-						if(numberOfreviews == inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker()){
-							numberOfreviews = 0;
-							numberOfWorkersToCreate++;
-							if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
-								createWorkers(1);
-							}
+					if(numberOfreviews == inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker()){
+						numberOfreviews = 0;
+						numberOfWorkersToCreate++;
+						if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
+							createWorkers(1);
 						}
 					}
-
-
-				}
-
-				if(numberOfreviews != 0){
-					numberOfreviews = 0;
-					numberOfWorkersToCreate++;
-					if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
-						createWorkers(1);
-					}
 				}
 
 
+			}
 
-			} catch (JsonSyntaxException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} 
-			
+			if(numberOfreviews != 0){
+				numberOfreviews = 0;
+				numberOfWorkersToCreate++;
+				if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
+					createWorkers(1);
+				}
+			}
 			inputFileHashmap.get(movieTitle).setDoneSending(true);
 		}
-		if(reader != null)
-			try {
-				System.out.println();
-				System.out.println("close reader!!!");
-				System.out.println();
-				reader.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 	}
 
 	public static void createWorkers(int numberOfWorkersToCreate){
@@ -325,7 +319,7 @@ public class App {
 			ArrayList<Tag> tags = new ArrayList<Tag>();
 			Tag t = new Tag();
 			t.setKey("role");
-			t.setValue("worker");
+			t.setValue("worker3");
 			tags.add(t);
 			CreateTagsRequest ctr = new CreateTagsRequest();
 			ctr.setTags(tags);
@@ -348,7 +342,7 @@ public class App {
 		String movieTitle,reviewId,reviewSentiment,reviewEntities;
 
 		for(Message message:messages){
-				
+
 			//System.out.println("##### Heap utilization statistics [MB] #####" + (runtime.totalMemory() - runtime.freeMemory()) / mb);
 
 			if(message.getBody().split("###")[0].equals("reviewAnalyzeComplete")) {
@@ -356,10 +350,15 @@ public class App {
 				reviewId = message.getBody().split("###")[2];
 				reviewSentiment = message.getBody().split("###")[3];
 				reviewEntities = message.getBody().split("###")[4];
+
 				//update reviewsHashmap
-				
-				inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
-				inputFileHashmap.get(movieTitle).incNumberOfAnalyzedReviews();
+
+				System.out.println("movie: " + movieTitle + " --- " + reviewId +" - size " + inputFileHashmap.get(movieTitle).getReviewsHashMap().size() + " |" + inputFileHashmap.get(movieTitle).getNumberOfAnalyzedReviews());
+				if(inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).getEntities() == null){
+
+					inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
+					inputFileHashmap.get(movieTitle).incNumberOfAnalyzedReviews();
+				}
 
 				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),workersToManagerQueue);

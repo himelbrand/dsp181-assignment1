@@ -91,7 +91,7 @@ public class SQS {
     
     public List<Message> reciveMessages(String queueUrl) {
         // Receive messages
-        System.out.println("Receiving messages from " + queueUrl + " .\n");
+       // System.out.println("Receiving messages from " + queueUrl + " .\n");
         ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20);
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
