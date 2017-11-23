@@ -155,17 +155,19 @@ public class App {
 		TerminateInstancesResult terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
 
 		//Wait for instances to terminate
+		DescribeInstancesResult terminatedInstacesIds = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(workersInstancesIds));
 		for(InstanceStateChange instance :terminateInstancesResult.getTerminatingInstances())
 		{
-			while (instance.getCurrentState().getName() != "terminated") {
+			Instance myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
+			while (!myInstance.getState().getName().equals("terminated")) {
 				try {
 					Thread.sleep(5000);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				System.out.println(instance.getCurrentState().getName());
-				System.out.println(instance.getCurrentState().getCode());
+				System.out.println(instance.getCurrentState().getName()  + " " + instance.getInstanceId());
+				myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 			}
 		}
 	}
@@ -177,7 +179,7 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("worker");
+		filters.add("worker1");
 		Filter filter = new Filter("tag-value", filters);
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
 		List<Reservation> reservations = result.getReservations();
@@ -208,6 +210,7 @@ public class App {
 			}else if(message.getBody().equals("terminate")) {
 				System.out.println("retrive messages from localappqueue -----------------------  T E R M I N A T E -----------------------");
 				terminateLocalAppReciver = true;
+				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 				break;
 			}
 
@@ -246,7 +249,7 @@ public class App {
 
 		while(!localAppDownloadedInputFiles.isEmpty()){
 			String fileInputString = localAppDownloadedInputFiles.poll();
-
+			numberOfWorkersToCreate=0;	
 			int nnnnn = 0;
 			numberOfreviews = 0;
 			String[] fileInputStringSplit = fileInputString.split("###");
@@ -298,7 +301,7 @@ public class App {
 			ArrayList<Tag> tags = new ArrayList<Tag>();
 			Tag t = new Tag();
 			t.setKey("role");
-			t.setValue("worker");
+			t.setValue("worker1");
 			tags.add(t);
 			CreateTagsRequest ctr = new CreateTagsRequest();
 			ctr.setTags(tags);
@@ -383,11 +386,13 @@ public class App {
 		lines.add("sudo apt-get update");
 		lines.add("sudo apt-get install openjdk-8-jre-headless -y");
 		lines.add("sudo apt-get install wget -y");
+		lines.add("sudo apt-get install unzip -y");
 		lines.add("sudo wget http://repo1.maven.org/maven2/com/googlecode/efficient-java-matrix-library/ejml/0.23/ejml-0.23.jar");
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0.jar");
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0-models.jar");
 		lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
-		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker-0.0.1-SNAPSHOT.jar -O worker.jar");
+		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker-0.0.1-SNAPSHOT.zip -O worker.zip");
+		lines.add("sudo uzip -P 123456 worker.zip");
 		lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;

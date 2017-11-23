@@ -62,8 +62,11 @@ public class App {
 		sendInputFilesLocation(filesKeys,numberOfFilesPerWorker);
 
 		// send termination message
-		if(terminate)
-			sqs.sendMessage("terminate");
+		if(terminate){
+			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "terminate");
+			 sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
+			sqs.sendMessageRequest(sendMessageRequest);
+		}
 
 		// check for message "completeFileMessage"
 		while(remainingFiles > 0){ 
@@ -218,7 +221,8 @@ public class App {
 		lines.add("sudo apt-get update");
 		lines.add("sudo apt-get install openjdk-8-jre-headless -y");
 		lines.add("sudo apt-get install wget -y");
-		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/manger-0.0.1-SNAPSHOT.jar -O manager.jar");
+		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/manger-0.0.1-SNAPSHOT.zip -O manager.zip");
+		lines.add("sudo uzip -P 123456 manager.zip");
 		lines.add("java -jar manager.jar");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;
