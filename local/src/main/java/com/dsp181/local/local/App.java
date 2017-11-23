@@ -31,6 +31,7 @@ public class App {
 	private static S3 s3;
 	private static int numberOfFilesPerWorker =0;
 	private static boolean terminate = false; 
+	private static ArrayList<String> filesPathArray = new ArrayList<String>(),outputFilesPathArray = new ArrayList<String>();
 	public static void main(String[] args) throws IOException {
 
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
@@ -51,7 +52,7 @@ public class App {
 
 
 		// get details from args array
-		ArrayList<String> filesPathArray = getArgsDetails(args);
+		getArgsDetails(args);
 
 		// check if the manager node is active and run it otherwise
 		launchManagerNode();
@@ -91,7 +92,7 @@ public class App {
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
 					for(Tag tag :instance.getTags()){
-						if(tag.getValue().equals("manager"))
+						if(tag.getValue().equals("manager!"))
 							found = true;
 					}
 				}
@@ -115,7 +116,7 @@ public class App {
 				ArrayList<Tag> tags = new ArrayList<Tag>();
 				Tag t = new Tag();
 				t.setKey("role");
-				t.setValue("manager");
+				t.setValue("manager!");
 				tags.add(t);
 				CreateTagsRequest ctr = new CreateTagsRequest();
 				ctr.setTags(tags);
@@ -200,7 +201,9 @@ public class App {
 
 				}
 				htmlBuilder.append("</body></html>");
-				PrintWriter writer = new PrintWriter(responseObject.getKey()+ ".html" , "UTF-8");
+				String keyName = responseObject.getKey().split("@@@")[1];
+				String fileOutputName =  outputFilesPathArray.get(filesPathArray.indexOf(keyName));
+				PrintWriter writer = new PrintWriter(fileOutputName +  ".html" , "UTF-8");
 				writer.print(htmlBuilder);
 				ArrayList<String> tempArrayList = new ArrayList<String>();
 				tempArrayList.add(responseObject.getKey()+ ".html");
@@ -221,8 +224,9 @@ public class App {
 		lines.add("sudo apt-get update");
 		lines.add("sudo apt-get install openjdk-8-jre-headless -y");
 		lines.add("sudo apt-get install wget -y");
+		lines.add("sudo apt-get install unzip -y");
 		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/manager.zip");
-		lines.add("sudo uzip -P 123456 manager.zip");
+		lines.add("sudo unzip -P 123456 manager.zip");
 		lines.add("java -jar manager.jar");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;
@@ -241,8 +245,7 @@ public class App {
 		return builder.toString();
 	}
 
-	private static ArrayList<String> getArgsDetails(String[] args){
-		ArrayList<String> filesPathArray = new ArrayList<String>();
+	private static void getArgsDetails(String[] args){
 		int numberOfFiles=args.length;
 		if(args[args.length - 1].equals("terminate")){
 			terminate = true;
@@ -254,8 +257,10 @@ public class App {
 			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 1]);
 		}
 		for(int i=0;i<numberOfFiles;i++){
-			filesPathArray.add(args[i]);
+			if(i<numberOfFiles/2)
+				filesPathArray.add(args[i]);
+			else
+				outputFilesPathArray.add(args[i]);			
 		}
-		return filesPathArray;
 	}
 }
