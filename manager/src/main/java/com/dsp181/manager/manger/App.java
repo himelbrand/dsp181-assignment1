@@ -414,7 +414,7 @@ public class App {
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0.jar");
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0-models.jar");
 		lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
-		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker-0.0.1-SNAPSHOT.zip -O worker.zip");
+		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker.zip");
 		lines.add("sudo uzip -P 123456 worker.zip");
 		lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
