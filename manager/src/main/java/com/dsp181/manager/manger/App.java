@@ -184,7 +184,7 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("worker1");
+		filters.add("worker");
 		Filter filter = new Filter("tag-value", filters);
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
 		List<Reservation> reservations = result.getReservations();
@@ -324,7 +324,7 @@ public class App {
 			ArrayList<Tag> tags = new ArrayList<Tag>();
 			Tag t = new Tag();
 			t.setKey("role");
-			t.setValue("worker1");
+			t.setValue("worker");
 			tags.add(t);
 			CreateTagsRequest ctr = new CreateTagsRequest();
 			ctr.setTags(tags);
@@ -415,7 +415,7 @@ public class App {
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0-models.jar");
 		lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
 		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker.zip");
-		lines.add("sudo uzip -P 123456 worker.zip");
+		lines.add("sudo unzip -P 123456 worker.zip");
 		lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;

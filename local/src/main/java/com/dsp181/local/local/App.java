@@ -92,7 +92,7 @@ public class App {
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
 					for(Tag tag :instance.getTags()){
-						if(tag.getValue().equals("manager!"))
+						if(tag.getValue().equals("manager!!"))
 							found = true;
 					}
 				}
@@ -116,7 +116,7 @@ public class App {
 				ArrayList<Tag> tags = new ArrayList<Tag>();
 				Tag t = new Tag();
 				t.setKey("role");
-				t.setValue("manager!");
+				t.setValue("manager!!");
 				tags.add(t);
 				CreateTagsRequest ctr = new CreateTagsRequest();
 				ctr.setTags(tags);
