@@ -170,6 +170,11 @@ public class App {
 				myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 			}
 		}
+		terminateInstancesRequest = new TerminateInstancesRequest();
+		terminateInstancesRequest.setInstanceIds(getManagerInstancesIds());
+	    terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
+	    
+	    System.out.println("\n!!!manager terminated !!!\n");
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -180,6 +185,24 @@ public class App {
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
 		filters.add("worker1");
+		Filter filter = new Filter("tag-value", filters);
+		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
+		List<Reservation> reservations = result.getReservations();
+		for (Reservation reservation : reservations) {
+			List<Instance> instances = reservation.getInstances();
+			for (Instance instance : instances) {
+				instancesIds.add(instance.getInstanceId());
+			}
+		}
+		return instancesIds;
+	}
+	
+	private static ArrayList<String>  getManagerInstancesIds(){
+		ArrayList<String> instancesIds = new ArrayList<String>();
+
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		List<String> filters = new ArrayList<String>();
+		filters.add("manager");
 		Filter filter = new Filter("tag-value", filters);
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
 		List<Reservation> reservations = result.getReservations();
