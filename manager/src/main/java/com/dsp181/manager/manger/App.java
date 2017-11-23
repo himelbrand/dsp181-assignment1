@@ -101,7 +101,6 @@ public class App {
 	static SQS sqs;
 	static S3 s3;
 	static 	AmazonEC2 ec2;
-	static double numberOfReviewsPerWorker;
 
 	static ConcurrentHashMap<String, InputFile> inputFileHashmap = new ConcurrentHashMap<String, InputFile>();
 
@@ -112,7 +111,7 @@ public class App {
 	static ArrayList<Thread> threadArrayList = new ArrayList<Thread>();;
 	static ExecutorService executor = Executors.newFixedThreadPool(1);
 	static CountDownLatch latch = new CountDownLatch(3);
-	static String managerToWorkersQueue = "managerToWorkersQueue",workersToManagerQueue="workersToManagerQueue",localAppToManagerQueue="localAppToManagerQueue",managerTolocalAppQueue="managerTolocalAppQueue-";
+	static String managerToWorkersQueue = "managerToWorkersQueue",workersToManagerQueue="workersToManagerQueue",localAppToManagerQueue="localAppToManagerQueue.fifo",managerTolocalAppQueue="managerTolocalAppQueue-";
 	static Runtime runtime = Runtime.getRuntime();
 	static int mb = 1024*1024;
 	public static void main( String[] args ){
@@ -125,21 +124,13 @@ public class App {
 		sqs.createQueue(managerToWorkersQueue);
 		sqs.createQueue(workersToManagerQueue);
 
-
 		s3 = new S3();
 		s3.launch(credentialsProvider);
-
 
 		ec2 = AmazonEC2ClientBuilder.standard()
 				.withCredentials(credentialsProvider)
 				.withRegion("us-west-2")
 				.build();
-
-		//contain all review in the form of hashMap<key : "file key, value : pair< numberOfResloveRevies , hashMap<key : reviewId, value : reviewObj>>>		
-
-
-		numberOfReviewsPerWorker=0;
-
 
 
 		threadArrayList.add(new ReciverLocalAppQueue());
@@ -150,16 +141,15 @@ public class App {
 		threadArrayList.add(new ReceiverWorkerQueue());
 		threadArrayList.get(2).start();
 
-		System.out.println("latch enter await");
 		try {
+			System.out.println("\nlatch enter await\n");
 			latch.await();
+			System.out.println("\nlatch exit await\n");
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+			e.printStackTrace();}
 
 		ArrayList<String> workersInstancesIds = getWorkersInstancesIds();
-
 		TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest();
 		terminateInstancesRequest.setInstanceIds(workersInstancesIds);
 		TerminateInstancesResult terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
@@ -178,8 +168,6 @@ public class App {
 				System.out.println(instance.getCurrentState().getCode());
 			}
 		}
-
-
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -189,18 +177,13 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("worker3");
+		filters.add("worker");
 		Filter filter = new Filter("tag-value", filters);
-
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
-
 		List<Reservation> reservations = result.getReservations();
-
 		for (Reservation reservation : reservations) {
 			List<Instance> instances = reservation.getInstances();
-
 			for (Instance instance : instances) {
-
 				instancesIds.add(instance.getInstanceId());
 			}
 		}
@@ -209,7 +192,7 @@ public class App {
 
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
-		List<Message> messages = sqs.reciveMessages(localAppToManagerQueue);
+		List<Message> messages = sqs.reciveMessagesFifoQueue(localAppToManagerQueue);
 		String movieTitle;
 		for(Message message:messages){
 			if(message.getBody().split("###")[0].equals("fileMessage")) {
@@ -223,6 +206,7 @@ public class App {
 				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 			}else if(message.getBody().equals("terminate")) {
+				System.out.println("retrive messages from localappqueue -----------------------  T E R M I N A T E -----------------------");
 				terminateLocalAppReciver = true;
 				break;
 			}
@@ -255,7 +239,6 @@ public class App {
 	public static void sendMessagesToWorkersQueue(ConcurrentLinkedQueue<String> localAppDownloadedInputFiles){
 		int numberOfreviews =0;
 		int numberOfWorkersToCreate=0;
-		BufferedReader reader = null;
 		Gson gson = new Gson();
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
@@ -268,6 +251,7 @@ public class App {
 			numberOfreviews = 0;
 			String[] fileInputStringSplit = fileInputString.split("###");
 			movieTitle = fileInputStringSplit[0];
+			String filekeytemp = movieTitle.split("@@@")[1];
 			System.out.println("sending reviews from new input file - " + movieTitle);
 			for (String sCurrentLine :fileInputStringSplit[1].split("\n")) {
 
@@ -280,7 +264,7 @@ public class App {
 					reviewUrl = ((JsonObject) review).get("link").getAsString();
 					numberOfreviews++;
 					nnnnn++;
-					System.out.println("send message number - " + nnnnn + "   |   " + reviewId);
+					System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
 					inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
 
 					sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
@@ -293,10 +277,7 @@ public class App {
 						}
 					}
 				}
-
-
 			}
-
 			if(numberOfreviews != 0){
 				numberOfreviews = 0;
 				numberOfWorkersToCreate++;
@@ -311,15 +292,13 @@ public class App {
 	public static void createWorkers(int numberOfWorkersToCreate){
 		try {
 			RunInstancesRequest request = new RunInstancesRequest("ami-0a00ce72", numberOfWorkersToCreate, numberOfWorkersToCreate);
-
 			request.setInstanceType(InstanceType.T2Medium.toString());
 			request.setUserData(getUserDataScript());
-			int numberOfcurrentWorkers = getWorkersInstancesIds().size();
 			List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
 			ArrayList<Tag> tags = new ArrayList<Tag>();
 			Tag t = new Tag();
 			t.setKey("role");
-			t.setValue("worker3");
+			t.setValue("worker");
 			tags.add(t);
 			CreateTagsRequest ctr = new CreateTagsRequest();
 			ctr.setTags(tags);
@@ -327,8 +306,7 @@ public class App {
 				ctr.withResources(instance.getInstanceId());
 				ec2.createTags(ctr);
 			}
-			//System.out.println("Launch instances: " + instances);
-
+			System.out.println("Run new worker - " + getWorkersInstancesIds().size());
 		} catch (AmazonServiceException ase) {
 			System.out.println("Caught Exception: " + ase.getMessage());
 			System.out.println("Reponse Status Code: " + ase.getStatusCode());
@@ -340,44 +318,38 @@ public class App {
 	public static void retriveMessageFromWorkersQueue(){
 		List<Message>  messages = sqs.reciveMessages(workersToManagerQueue);
 		String movieTitle,reviewId,reviewSentiment,reviewEntities;
-
+		String[] messageSplitArray;
+		InputFile inputFile;
 		for(Message message:messages){
+			messageSplitArray = message.getBody().split("###");
+			movieTitle =messageSplitArray[1];
+			String filekeytemp = movieTitle.split("@@@")[1];
+			reviewId = messageSplitArray[2];
+			reviewSentiment = messageSplitArray[3];
+			reviewEntities = messageSplitArray[4];
+			inputFile = inputFileHashmap.get(movieTitle);
 
-			//System.out.println("##### Heap utilization statistics [MB] #####" + (runtime.totalMemory() - runtime.freeMemory()) / mb);
-
-			if(message.getBody().split("###")[0].equals("reviewAnalyzeComplete")) {
-				movieTitle = message.getBody().split("###")[1];
-				reviewId = message.getBody().split("###")[2];
-				reviewSentiment = message.getBody().split("###")[3];
-				reviewEntities = message.getBody().split("###")[4];
-
-				//update reviewsHashmap
-
-				System.out.println("movie: " + movieTitle + " --- " + reviewId +" - size " + inputFileHashmap.get(movieTitle).getReviewsHashMap().size() + " |" + inputFileHashmap.get(movieTitle).getNumberOfAnalyzedReviews());
-				if(inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).getEntities() == null){
-
-					inputFileHashmap.get(movieTitle).getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
-					inputFileHashmap.get(movieTitle).incNumberOfAnalyzedReviews();
-				}
-
-				// delete the message from queue
-				sqs.deleteMessages(Collections.singletonList(message),workersToManagerQueue);
-
-				//check if all this movie reviews are analyzed and create file if so
-				if(inputFileHashmap.get(movieTitle).isDoneSending() && inputFileHashmap.get(movieTitle).getNumberOfAnalyzedReviews() == inputFileHashmap.get(movieTitle).getReviewsHashMap().size()){
-					System.out.println("finish analyze file size : " + inputFileHashmap.get(movieTitle).getReviewsHashMap().size());
+			//update reviewsHashmap
+			if(inputFile !=null && inputFile.getReviewsHashMap().get(reviewId).getEntities() == null){
+				inputFile.getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
+				inputFile.incNumberOfAnalyzedReviews();
+				System.out.println("receive message number - " + inputFile.getReviewsHashMap().size() + "|" + inputFile.getNumberOfAnalyzedReviews() + " | " + reviewId +  " --- " + filekeytemp);
+				if(inputFile.isDoneSending() && inputFile.getNumberOfAnalyzedReviews() == inputFile.getReviewsHashMap().size()){
+					System.out.println("finish analyze file size : " + inputFile.getReviewsHashMap().size());
 					Thread worker = new SenderLocalAppQueue(movieTitle);
 					executor.execute(worker);
 				}
-
 			}
+			// delete the message from queue
+			sqs.deleteMessages(Collections.singletonList(message),workersToManagerQueue);
+			//check if all this movie reviews are analyzed and create file if so
 		}
 
 	}
 
 	public static void writeSummaryFileIfNeeded(String movieTitle){
 		try {
-
+			System.out.println("write summary file for - " + movieTitle);
 			JsonObject jsonPerReview = new JsonObject();
 			PrintWriter writer = new PrintWriter(movieTitle + "@@@" + "complete.txt", "UTF-8");
 			Iterator<Entry<String, Review>> it = inputFileHashmap.get(movieTitle).getReviewsHashMap().entrySet().iterator();
@@ -397,7 +369,6 @@ public class App {
 			//send message to localApp containing the key of the summary file
 			sqs.sendMessage("completeFileMessage###" + fileKey.get(0) +"###" + inputFileHashmap.get(movieTitle).getUuid(), managerTolocalAppQueue + inputFileHashmap.get(movieTitle).getUuid());
 			inputFileHashmap.remove(movieTitle);
-
 		}    catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

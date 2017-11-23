@@ -10,6 +10,7 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -133,7 +134,11 @@ public class App {
 
 	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
 		for(String fileKey:filesKeys){
-			sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
+			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
+			 sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
+			
+			sqs.sendMessageRequest(sendMessageRequest);
+			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
 		System.out.println();
 	}
@@ -173,9 +178,6 @@ public class App {
 				while((line = reader.readLine()) != null) {
 					jelem = gson.fromJson(line, JsonElement.class);
 					jobj = jelem.getAsJsonObject();
-					System.out.println("color number - " + jobj.get("sentiment").toString());
-					System.out.println("color number - " + jobj.get("sentiment").getAsString());
-					System.out.printf("color number - %d" , jobj.get("sentiment").getAsInt());
 					switch(Integer.parseInt(jobj.get("sentiment").toString())){
 					case 0: color = "DarkRed";
 					break;

@@ -50,6 +50,12 @@ public class SQS {
     private AmazonSQS sqs;
     private String myQueueUrlSend;
     private String myQueueUrlReceive;
+    public String getMyQueueUrlReceive() {
+		return myQueueUrlReceive;
+	}
+    public String getMyQueueUrlSend() {
+		return myQueueUrlSend;
+	}
     public  void launch(AWSCredentialsProvider credentialsProvider,UUID uuid) {
         /*
          * Important: Be sure to fill in your AWS access credentials in the
@@ -83,12 +89,15 @@ public class SQS {
             	}
             }
             Map<String, String> attributes = new HashMap<String, String>();
+            // A FIFO queue must have the FifoQueue attribute set to True
             attributes.put("FifoQueue", "true");
+            // Generate a MessageDeduplicationId based on the content, if the user doesn't provide a MessageDeduplicationId
+            attributes.put("ContentBasedDeduplication", "true");
             
             if(!foundLocalAppQueueSend){
             System.out.println();
             System.out.println("Creating a new SQS queue called localAppToManagerQueue.\n");
-            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppToManagerQueue");//.withAttributes(attributes);
+            CreateQueueRequest createQueueRequest = new CreateQueueRequest("localAppToManagerQueue.fifo").withAttributes(attributes);
             myQueueUrlSend = sqs.createQueue(createQueueRequest).getQueueUrl();
             }
             if(!foundLocalAppQueueReceive){
@@ -121,7 +130,11 @@ public class SQS {
         System.out.println("Sending a message to " + myQueueUrlSend + ".\n");
         sqs.sendMessage(new SendMessageRequest(myQueueUrlSend, message));
     }
-    
+    public void sendMessageRequest(SendMessageRequest sendMessageRequest) {
+        // Send a message
+        System.out.println("Sending a message request to " + myQueueUrlSend + ".\n");
+        sqs.sendMessage(sendMessageRequest);
+    }
     public List<Message> reciveMessages() {
         // Receive messages
         System.out.println("Receiving messages from " + myQueueUrlReceive + " .\n");
