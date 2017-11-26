@@ -44,7 +44,7 @@ public class App
 		List<Message> messages = null;
 		Map<String, MessageAttributeValue> messageAttributes = null;
 		SendMessageRequest sendMessageRequest = null;
-		Map<String,String> receiveMessageAttributes = null;
+		Map<String,MessageAttributeValue> receiveMessageAttributes = null;
 		
 		while(true){
 			 messages = sqs.reciveMessages("managerToWorkersQueue");
@@ -52,14 +52,14 @@ public class App
 				//if(message.getBody().split("###")[0].equals("reviewMessage")) {
 					//sentiment = nlp.findSentiment(message.getBody().split("###")[3]);
 					//entities = nlp.findEntities(message.getBody().split("###")[3]);
-				receiveMessageAttributes = message.getAttributes();
-					sentiment = nlp.findSentiment(receiveMessageAttributes.get("reviewText"));
-					entities = nlp.findEntities(receiveMessageAttributes.get("reviewText"));
+				receiveMessageAttributes = message.getMessageAttributes();
+					sentiment = nlp.findSentiment(receiveMessageAttributes.get("reviewText").getStringValue());
+					entities = nlp.findEntities(receiveMessageAttributes.get("reviewText").getStringValue());
 					
 					
 					messageAttributes = new HashMap<String, MessageAttributeValue>();
-					messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("inputFileKey")));
-					messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("reviewId")));
+					messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("inputFileKey").getStringValue()));
+					messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("reviewId").getStringValue()));
 					messageAttributes.put("sentiment", new MessageAttributeValue().withDataType("String").withStringValue(String.valueOf(sentiment)));
 					messageAttributes.put("entities", new MessageAttributeValue().withDataType("String").withStringValue(entities.toString()));
 					

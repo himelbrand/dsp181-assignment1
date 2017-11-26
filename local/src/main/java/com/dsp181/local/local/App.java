@@ -176,7 +176,7 @@ public class App {
 		for(Message message:messages){
 			//if(message.getBody().split("###")[0].equals("completeFileMessage") && (message.getBody().split("###")[2].equals(uuid.toString()))) {
 			////responseKeys.add(message.getBody().split("###")[1]);
-			responseKeys.add(message.getAttributes().get("fileKey"));
+			responseKeys.add(message.getMessageAttributes().get("fileKey").getStringValue());
 			// delete the "processComplete" message
 			sqs.deleteMessages(Collections.singletonList(message));
 			//}
