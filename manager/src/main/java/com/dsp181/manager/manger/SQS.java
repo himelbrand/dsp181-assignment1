@@ -29,6 +29,7 @@ import com.amazonaws.services.sqs.model.DeleteMessageRequest;
 import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 /**
@@ -87,6 +88,12 @@ public class SQS {
         // Send a message
         //System.out.println("Sending a message to " + queueUrl + ".\n");
         sqs.sendMessage(messageRequest);
+    }
+    
+    public void sendMessageBatch(SendMessageBatchRequest sendMessageBatchRequest) {
+        // Send a message
+        //System.out.println("Sending a message to " + queueUrl + ".\n");
+        sqs.sendMessageBatch(sendMessageBatchRequest);
     }
     
     public List<Message> reciveMessages(String queueUrl) {

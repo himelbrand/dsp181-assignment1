@@ -34,6 +34,9 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
+import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
+import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
+import com.amazonaws.services.sqs.model.SendMessageBatchResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -235,6 +238,7 @@ public class App {
 				UUID = messageAttributes.get("UUID").getStringValue();
 				inputFileKey = bucketName +"@@@" + fileKey;
 
+				System.out.println();
 				System.out.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
 				inputFileHashmap.put(inputFileKey,new InputFile(0, UUID, Integer.parseInt(numberOfFilesPerWorker)));
 
@@ -285,6 +289,8 @@ public class App {
 		String inputFileKey,reviewId,reviewText,reviewUrl;
 		SendMessageRequest sendMessageRequest = null;
 		HashMap<String,MessageAttributeValue> messageAttributes = null;
+		SendMessageBatchRequestEntry entry = null;
+		ArrayList<SendMessageBatchRequestEntry> entries = null;
 		while(!localAppDownloadedInputFiles.isEmpty()){
 			String fileInputString = localAppDownloadedInputFiles.poll();
 			numberOfWorkersToCreate=0;	
@@ -300,6 +306,8 @@ public class App {
 				jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
 				jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
+				entries = new ArrayList<SendMessageBatchRequestEntry>();
+				
 				for(JsonElement review:  jsonReviews) {
 					reviewId = UUID.randomUUID().toString();
 					reviewText = ((JsonObject) review).get("text").getAsString();
@@ -313,12 +321,18 @@ public class App {
 					messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(reviewId));
 					messageAttributes.put("reviewText", new MessageAttributeValue().withDataType("String").withStringValue(reviewText));
 				
-					sendMessageRequest = new SendMessageRequest();
-					sendMessageRequest.withMessageBody("reviewMessage");
-					sendMessageRequest.withQueueUrl(managerToWorkersQueue);
-					sendMessageRequest.withMessageAttributes(messageAttributes);
+					
+					entry = new  SendMessageBatchRequestEntry();
+					entry.withMessageAttributes(messageAttributes);
+					entry.withMessageBody("reviewMessage");
+					entry.withId(UUID.randomUUID().toString());
+					entries.add(entry);
+				//	sendMessageRequest = new SendMessageRequest();
+				//	sendMessageRequest.withMessageBody("reviewMessage");
+				//	sendMessageRequest.withQueueUrl(managerToWorkersQueue);
+				//	sendMessageRequest.withMessageAttributes(messageAttributes);
 				
-					sqs.sendMessage(sendMessageRequest);
+	
 
 					if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
 						numberOfreviews = 0;
@@ -328,6 +342,8 @@ public class App {
 						}
 					}
 				}
+				SendMessageBatchRequest sendMessageBatchRequest =new  SendMessageBatchRequest(managerToWorkersQueue, entries);
+				sqs.sendMessageBatch(sendMessageBatchRequest);
 			}
 			if(numberOfreviews != 0){
 				numberOfreviews = 0;
