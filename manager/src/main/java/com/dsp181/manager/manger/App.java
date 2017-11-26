@@ -188,7 +188,11 @@ public class App {
 		List<String> filters = new ArrayList<String>();
 		filters.add("worker");
 		Filter filter = new Filter("tag-value", filters);
-		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
+		
+		filters = new ArrayList<String>();
+		filters.add("running");
+		Filter filter2 = new Filter("instance-state-name", filters);
+		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter,filter2));
 		List<Reservation> reservations = result.getReservations();
 		for (Reservation reservation : reservations) {
 			List<Instance> instances = reservation.getInstances();

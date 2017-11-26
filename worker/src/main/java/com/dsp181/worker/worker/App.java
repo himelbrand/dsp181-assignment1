@@ -8,7 +8,17 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.AttachClassicLinkVpcRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesResult;
+import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
@@ -35,7 +45,7 @@ public class App
 		Map<String, MessageAttributeValue> messageAttributes = null;
 		SendMessageRequest sendMessageRequest = null;
 		Map<String,String> receiveMessageAttributes = null;
-
+		
 		while(true){
 			 messages = sqs.reciveMessages("managerToWorkersQueue");
 			for(Message message:messages){

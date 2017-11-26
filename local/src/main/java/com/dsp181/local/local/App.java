@@ -93,8 +93,11 @@ public class App {
 		boolean done = false;
 		boolean found = false;
 		while(!done) {
+			ArrayList<String> filters = new ArrayList<String>();
+			filters.add("running");
+			Filter filter = new Filter("instance-state-name", filters);
 			DescribeInstancesRequest request = new DescribeInstancesRequest();
-			DescribeInstancesResult response = ec2.describeInstances(request);
+			DescribeInstancesResult response = ec2.describeInstances(request.withFilters(filter));
 
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
