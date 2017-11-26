@@ -104,7 +104,7 @@ public class SQS {
         ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
         		.withQueueUrl(queueUrl)
         		.withWaitTimeSeconds(20)
-        		.withAttributeNames("fileKey","bucketName","numberOfFilesPerWorker","UUID");
+        		.withMessageAttributeNames("fileKey","bucketName","numberOfFilesPerWorker","UUID");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
