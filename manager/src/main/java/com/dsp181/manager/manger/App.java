@@ -33,6 +33,8 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.MessageAttributeValue;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -85,14 +87,14 @@ class ReceiverWorkerQueue extends  Thread {
 }
 
 class SenderLocalAppQueue extends  Thread {
-	private String movieTitle;
-	public SenderLocalAppQueue(String movieTitle) {
+	private String inputFileKey;
+	public SenderLocalAppQueue(String inputFileKey) {
 		super();
-		this.movieTitle = movieTitle;
+		this.inputFileKey = inputFileKey;
 	}
 	@Override
 	public void run() {
-		App.writeSummaryFileIfNeeded(this.movieTitle);
+		App.writeSummaryFileIfNeeded(this.inputFileKey);
 	}
 }
 
@@ -106,7 +108,7 @@ public class App {
 
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
-	static ConcurrentLinkedQueue<String> movieTitleArrayList = new ConcurrentLinkedQueue<String>(); 
+	static ConcurrentLinkedQueue<String> inputFileKeyArrayList = new ConcurrentLinkedQueue<String>(); 
 	static ConcurrentLinkedQueue<String> localAppDownloadedInputFiles = new ConcurrentLinkedQueue<String>(); 
 	static ArrayList<Thread> threadArrayList = new ArrayList<Thread>();;
 	static ExecutorService executor = Executors.newFixedThreadPool(1);
@@ -218,15 +220,21 @@ public class App {
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
 		List<Message> messages = sqs.reciveMessagesFifoQueue(localAppToManagerQueue);
-		String movieTitle;
+		Map<String,String> messageAttributes = null;
+		String inputFileKey,fileKey,bucketName,numberOfFilesPerWorker,UUID;
 		for(Message message:messages){
-			if(message.getBody().split("###")[0].equals("fileMessage")) {
-				movieTitle = message.getBody().split("###")[2] +"@@@" + message.getBody().split("###")[1];
+			if(message.getBody().equals("fileMessage")) {
+				messageAttributes = message.getAttributes();
+				fileKey = messageAttributes.get("fileKey");
+				bucketName = messageAttributes.get("bucketName");
+				numberOfFilesPerWorker = messageAttributes.get("numberOfFilesPerWorker");
+				UUID = messageAttributes.get("UUID");
+				inputFileKey = bucketName +"@@@" + fileKey;
 
-				System.out.println("retrive messages from localappqueue , movieTitle:" + movieTitle);
-				inputFileHashmap.put(movieTitle,new InputFile(0, message.getBody().split("###")[4], Integer.parseInt(message.getBody().split("###")[3])));
+				System.out.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
+				inputFileHashmap.put(inputFileKey,new InputFile(0, UUID, Integer.parseInt(numberOfFilesPerWorker)));
 
-				keysAndBucketsHashMap.put(message.getBody().split("###")[1], message.getBody().split("###")[2]);
+				keysAndBucketsHashMap.put(fileKey,bucketName);
 				//numberOfReviewsPerWorker = Math.min(numberOfReviewsPerWorker, Integer.parseInt(message.getBody().split("###")[3]));
 				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
@@ -270,17 +278,19 @@ public class App {
 		Gson gson = new Gson();
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
-		String movieTitle,reviewId,reviewText,reviewUrl;
-
+		String inputFileKey,reviewId,reviewText,reviewUrl;
+		SendMessageRequest sendMessageRequest = null;
+		HashMap<String,MessageAttributeValue> messageAttributes = null;
 		while(!localAppDownloadedInputFiles.isEmpty()){
 			String fileInputString = localAppDownloadedInputFiles.poll();
 			numberOfWorkersToCreate=0;	
 			int nnnnn = 0;
 			numberOfreviews = 0;
 			String[] fileInputStringSplit = fileInputString.split("###");
-			movieTitle = fileInputStringSplit[0];
-			String filekeytemp = movieTitle.split("@@@")[1];
-			System.out.println("sending reviews from new input file - " + movieTitle);
+			inputFileKey = fileInputStringSplit[0];
+			
+			String filekeytemp = inputFileKey.split("@@@")[1];
+			System.out.println("sending reviews from new input file - " + inputFileKey);
 			for (String sCurrentLine :fileInputStringSplit[1].split("\n")) {
 
 				jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
@@ -293,11 +303,20 @@ public class App {
 					numberOfreviews++;
 					nnnnn++;
 					System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
-					inputFileHashmap.get(movieTitle).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
+					inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
+					messageAttributes = new HashMap<String, MessageAttributeValue>();
+					messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(inputFileKey));
+					messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(reviewId));
+					messageAttributes.put("reviewText", new MessageAttributeValue().withDataType("String").withStringValue(reviewText));
+				
+					sendMessageRequest = new SendMessageRequest();
+					sendMessageRequest.withMessageBody("reviewMessage");
+					sendMessageRequest.withQueueUrl(managerToWorkersQueue);
+					sendMessageRequest.withMessageAttributes(messageAttributes);
+				
+					sqs.sendMessage(sendMessageRequest);
 
-					sqs.sendMessage("reviewMessage###" + movieTitle  + "###" + reviewId + "###" + reviewText,managerToWorkersQueue);
-
-					if(numberOfreviews == inputFileHashmap.get(movieTitle).getNumberOfFilesPerWorker()){
+					if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
 						numberOfreviews = 0;
 						numberOfWorkersToCreate++;
 						if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
@@ -313,7 +332,7 @@ public class App {
 					createWorkers(1);
 				}
 			}
-			inputFileHashmap.get(movieTitle).setDoneSending(true);
+			inputFileHashmap.get(inputFileKey).setDoneSending(true);
 		}
 	}
 
@@ -345,26 +364,27 @@ public class App {
 
 	public static void retriveMessageFromWorkersQueue(){
 		List<Message>  messages = sqs.reciveMessages(workersToManagerQueue);
-		String movieTitle,reviewId,reviewSentiment,reviewEntities;
-		String[] messageSplitArray;
+		String inputFileKey,reviewId,reviewSentiment,reviewEntities;
+		//String[] messageSplitArray;
 		InputFile inputFile;
+		Map<String,String> messageAttributes = null;
 		for(Message message:messages){
-			messageSplitArray = message.getBody().split("###");
-			movieTitle =messageSplitArray[1];
-			String filekeytemp = movieTitle.split("@@@")[1];
-			reviewId = messageSplitArray[2];
-			reviewSentiment = messageSplitArray[3];
-			reviewEntities = messageSplitArray[4];
-			inputFile = inputFileHashmap.get(movieTitle);
+			messageAttributes = message.getAttributes();
+	//		messageSplitArray = message.getBody().split("###");
+			inputFileKey =messageAttributes.get("inputFileKey");
+			reviewId = messageAttributes.get("reviewId");
+			reviewSentiment = messageAttributes.get("sentiment");
+			reviewEntities = messageAttributes.get("entities");
+			inputFile = inputFileHashmap.get(inputFileKey);
 
 			//update reviewsHashmap
 			if(inputFile !=null && inputFile.getReviewsHashMap().get(reviewId).getEntities() == null){
 				inputFile.getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
 				inputFile.incNumberOfAnalyzedReviews();
-				System.out.println("receive message number - " + inputFile.getReviewsHashMap().size() + "|" + inputFile.getNumberOfAnalyzedReviews() + " | " + reviewId +  " --- " + filekeytemp);
+				System.out.println("receive message number - " + inputFile.getReviewsHashMap().size() + "|" + inputFile.getNumberOfAnalyzedReviews() + " | " + reviewId );
 				if(inputFile.isDoneSending() && inputFile.getNumberOfAnalyzedReviews() == inputFile.getReviewsHashMap().size()){
 					System.out.println("finish analyze file size : " + inputFile.getReviewsHashMap().size());
-					Thread worker = new SenderLocalAppQueue(movieTitle);
+					Thread worker = new SenderLocalAppQueue(inputFileKey);
 					executor.execute(worker);
 				}
 			}
@@ -375,12 +395,12 @@ public class App {
 
 	}
 
-	public static void writeSummaryFileIfNeeded(String movieTitle){
+	public static void writeSummaryFileIfNeeded(String inputFileKey){
 		try {
-			System.out.println("write summary file for - " + movieTitle);
+			System.out.println("write summary file for - " + inputFileKey);
 			JsonObject jsonPerReview = new JsonObject();
-			PrintWriter writer = new PrintWriter(movieTitle + "@@@" + "complete.txt", "UTF-8");
-			Iterator<Entry<String, Review>> it = inputFileHashmap.get(movieTitle).getReviewsHashMap().entrySet().iterator();
+			PrintWriter writer = new PrintWriter(inputFileKey + "@@@" + "complete.txt", "UTF-8");
+			Iterator<Entry<String, Review>> it = inputFileHashmap.get(inputFileKey).getReviewsHashMap().entrySet().iterator();
 			while (it.hasNext()) {
 				Map.Entry<String, Review> pair = (Map.Entry<String, Review>)it.next();
 				jsonPerReview = new JsonObject();
@@ -391,12 +411,20 @@ public class App {
 				writer.println(jsonPerReview);
 			}
 			writer.close();
-
+			
 			//upload summary file to S3
-			ArrayList<String> fileKey = s3.uploadFiles(new String[] {movieTitle + "@@@" + "complete.txt"}, movieTitle.split("@@@")[0]);
+			ArrayList<String> fileKey = s3.uploadFiles(new String[] {inputFileKey + "@@@" + "complete.txt"}, inputFileKey.split("@@@")[0]);
 			//send message to localApp containing the key of the summary file
-			sqs.sendMessage("completeFileMessage###" + fileKey.get(0) +"###" + inputFileHashmap.get(movieTitle).getUuid(), managerTolocalAppQueue + inputFileHashmap.get(movieTitle).getUuid());
-			inputFileHashmap.remove(movieTitle);
+			HashMap<String,MessageAttributeValue> messageAttributes = new HashMap<String, MessageAttributeValue>();
+			messageAttributes.put("fileKey", new MessageAttributeValue().withDataType("String").withStringValue(fileKey.get(0)));
+					
+			SendMessageRequest sendMessageRequest = new SendMessageRequest();
+			sendMessageRequest.withMessageBody("completeFileMessage");
+			sendMessageRequest.withQueueUrl(managerTolocalAppQueue + inputFileHashmap.get(inputFileKey).getUuid());
+			sendMessageRequest.withMessageAttributes(messageAttributes);
+			
+			sqs.sendMessage(sendMessageRequest);
+			inputFileHashmap.remove(inputFileKey);
 		}    catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
