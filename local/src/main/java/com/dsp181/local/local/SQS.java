@@ -32,6 +32,7 @@ import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageResult;
 
 /**
  * This sample demonstrates how to make basic requests to Amazon SQS using the
@@ -130,10 +131,10 @@ public class SQS {
         System.out.println("Sending a message to " + myQueueUrlSend + ".\n");
         sqs.sendMessage(new SendMessageRequest(myQueueUrlSend, message));
     }
-    public void sendMessageRequest(SendMessageRequest sendMessageRequest) {
+    public SendMessageResult sendMessageRequest(SendMessageRequest sendMessageRequest) {
         // Send a message
         System.out.println("Sending a message request to " + myQueueUrlSend + ".\n");
-        sqs.sendMessage(sendMessageRequest);
+        return sqs.sendMessage(sendMessageRequest);
     }
     public List<Message> reciveMessages() {
         // Receive messages

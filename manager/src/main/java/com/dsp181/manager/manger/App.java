@@ -202,7 +202,7 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("manager");
+		filters.add("manager!!!");
 		Filter filter = new Filter("tag-value", filters);
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
 		List<Reservation> reservations = result.getReservations();
@@ -235,6 +235,8 @@ public class App {
 				terminateLocalAppReciver = true;
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 				break;
+			}else{
+			System.out.println("error message " + message.getBody());
 			}
 
 		}
@@ -416,7 +418,7 @@ public class App {
 		lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
 		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker.zip");
 		lines.add("sudo unzip -P 123456 worker.zip");
-		lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
+		lines.add("java -cp .:worker-0.0.1-SNAPSHOT.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker-0.0.1-SNAPSHOT.jar ");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;
 	}

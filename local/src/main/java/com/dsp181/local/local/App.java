@@ -11,6 +11,7 @@ import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -66,11 +67,14 @@ public class App {
 		if(terminate){
 			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "terminate");
 			 sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
-			sqs.sendMessageRequest(sendMessageRequest);
+			SendMessageResult messageResult =  sqs.sendMessageRequest(sendMessageRequest);
+			while(messageResult.getMessageId() == null){
+				System.out.println("termiante is being send " + sqs.sendMessageRequest(sendMessageRequest));
+			}
 		}
 
 		// check for message "completeFileMessage"
-		while(remainingFiles > 0){ 
+		while(remainingFiles > 0){
 			ArrayList<String> responseCompleteFilesKeys = checkForCompleteFileMessage();
 			//
 			remainingFiles -= responseCompleteFilesKeys.size();
@@ -78,6 +82,8 @@ public class App {
 			if(responseCompleteFilesKeys.size() > 0)
 				downloadResulstAndCreateHtml(responseCompleteFilesKeys);
 		}
+		
+		System.out.println("ENDD");
 
 
 	}
@@ -92,7 +98,7 @@ public class App {
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
 					for(Tag tag :instance.getTags()){
-						if(tag.getValue().equals("manager!!"))
+						if(tag.getValue().equals("manager!!!"))
 							found = true;
 					}
 				}
@@ -116,7 +122,7 @@ public class App {
 				ArrayList<Tag> tags = new ArrayList<Tag>();
 				Tag t = new Tag();
 				t.setKey("role");
-				t.setValue("manager!!");
+				t.setValue("manager!!!");
 				tags.add(t);
 				CreateTagsRequest ctr = new CreateTagsRequest();
 				ctr.setTags(tags);
@@ -144,6 +150,7 @@ public class App {
 			sqs.sendMessageRequest(sendMessageRequest);
 			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
+		System.out.println("send files");
 		System.out.println();
 	}
 
@@ -206,7 +213,7 @@ public class App {
 				PrintWriter writer = new PrintWriter(fileOutputName +  ".html" , "UTF-8");
 				writer.print(htmlBuilder);
 				ArrayList<String> tempArrayList = new ArrayList<String>();
-				tempArrayList.add(responseObject.getKey()+ ".html");
+				tempArrayList.add(fileOutputName+ ".html");
 				writer.close();
 				s3.uploadFiles(tempArrayList);
 				System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
