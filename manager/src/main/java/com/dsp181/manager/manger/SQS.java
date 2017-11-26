@@ -83,16 +83,17 @@ public class SQS {
 		}
     	
     }
-    public void sendMessage(String message,String queueUrl) {
+    public void sendMessage(SendMessageRequest messageRequest) {
         // Send a message
         //System.out.println("Sending a message to " + queueUrl + ".\n");
-        sqs.sendMessage(new SendMessageRequest(queueUrl, message));
+        sqs.sendMessage(messageRequest);
     }
     
     public List<Message> reciveMessages(String queueUrl) {
         // Receive messages
        // System.out.println("Receiving messages from " + queueUrl + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20);
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20)
+        		.withAttributeNames("inputFileKey","reviewId","sentiment","entities");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
@@ -100,7 +101,10 @@ public class SQS {
     public List<Message> reciveMessagesFifoQueue(String queueUrl) {
         // Receive messages
        // System.out.println("Receiving messages from " + queueUrl + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20);
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
+        		.withQueueUrl(queueUrl)
+        		.withWaitTimeSeconds(20)
+        		.withAttributeNames("fileKey","bucketName","numberOfFilesPerWorker","UUID");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }
