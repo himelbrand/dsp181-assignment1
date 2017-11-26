@@ -224,15 +224,15 @@ public class App {
 	public static HashMap<String, String> retriveMessageFromLocalAppQueue(){
 		HashMap<String, String> keysAndBucketsHashMap = new HashMap<String, String>();
 		List<Message> messages = sqs.reciveMessagesFifoQueue(localAppToManagerQueue);
-		Map<String,String> messageAttributes = null;
+		Map<String,MessageAttributeValue> messageAttributes = null;
 		String inputFileKey,fileKey,bucketName,numberOfFilesPerWorker,UUID;
 		for(Message message:messages){
 			if(message.getBody().equals("fileMessage")) {
-				messageAttributes = message.getAttributes();
-				fileKey = messageAttributes.get("fileKey");
-				bucketName = messageAttributes.get("bucketName");
-				numberOfFilesPerWorker = messageAttributes.get("numberOfFilesPerWorker");
-				UUID = messageAttributes.get("UUID");
+				messageAttributes = message.getMessageAttributes();
+				fileKey = messageAttributes.get("fileKey").getStringValue();
+				bucketName = messageAttributes.get("bucketName").getStringValue();
+				numberOfFilesPerWorker = messageAttributes.get("numberOfFilesPerWorker").getStringValue();
+				UUID = messageAttributes.get("UUID").getStringValue();
 				inputFileKey = bucketName +"@@@" + fileKey;
 
 				System.out.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
@@ -371,14 +371,14 @@ public class App {
 		String inputFileKey,reviewId,reviewSentiment,reviewEntities;
 		//String[] messageSplitArray;
 		InputFile inputFile;
-		Map<String,String> messageAttributes = null;
+		Map<String,MessageAttributeValue> messageAttributes = null;
 		for(Message message:messages){
-			messageAttributes = message.getAttributes();
+			messageAttributes = message.getMessageAttributes();
 	//		messageSplitArray = message.getBody().split("###");
-			inputFileKey =messageAttributes.get("inputFileKey");
-			reviewId = messageAttributes.get("reviewId");
-			reviewSentiment = messageAttributes.get("sentiment");
-			reviewEntities = messageAttributes.get("entities");
+			inputFileKey =messageAttributes.get("inputFileKey").getStringValue();
+			reviewId = messageAttributes.get("reviewId").getStringValue();
+			reviewSentiment = messageAttributes.get("sentiment").getStringValue();
+			reviewEntities = messageAttributes.get("entities").getStringValue();
 			inputFile = inputFileHashmap.get(inputFileKey);
 
 			//update reviewsHashmap
