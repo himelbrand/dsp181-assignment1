@@ -31,6 +31,7 @@ import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageResult;
 
 /**
  * This sample demonstrates how to make basic requests to Amazon SQS using the
@@ -80,6 +81,12 @@ public class SQS {
            }
     	
     }
+    public SendMessageResult sendMessageRequest(SendMessageRequest sendMessageRequest) {
+        // Send a message
+        System.out.println("Sending a message request to workersToManaer.\n");
+        return sqs.sendMessage(sendMessageRequest);
+    }
+    
     public void sendMessage(String message,String queueUrl) {
         // Send a message
         System.out.println("Sending a message to " + queueUrl + ".\n");
@@ -89,7 +96,9 @@ public class SQS {
     public List<Message> reciveMessages(String queueUrl) {
         // Receive messages
         System.out.println("Receiving messages from " + queueUrl + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withMaxNumberOfMessages(10).withWaitTimeSeconds(20);
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl)
+        		.withMaxNumberOfMessages(10).withWaitTimeSeconds(20)
+        		.withAttributeNames("inputFileKey","reviewId","reviewText");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }

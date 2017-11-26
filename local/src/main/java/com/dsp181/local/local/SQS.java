@@ -139,7 +139,8 @@ public class SQS {
     public List<Message> reciveMessages() {
         // Receive messages
         System.out.println("Receiving messages from " + myQueueUrlReceive + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlReceive).withQueueUrl(myQueueUrlReceive).withWaitTimeSeconds(20).withMaxNumberOfMessages(1);
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(myQueueUrlReceive).withQueueUrl(myQueueUrlReceive)
+        		.withWaitTimeSeconds(20).withMaxNumberOfMessages(1).withAttributeNames("fileKey");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
     }

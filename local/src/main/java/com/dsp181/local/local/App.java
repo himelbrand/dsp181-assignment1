@@ -10,6 +10,7 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.google.gson.Gson;
@@ -66,7 +67,7 @@ public class App {
 		// send termination message
 		if(terminate){
 			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "terminate");
-			 sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
+			 sendMessageRequest.setMessageGroupId("localApp-" + uuid.toString());
 			SendMessageResult messageResult =  sqs.sendMessageRequest(sendMessageRequest);
 			while(messageResult.getMessageId() == null){
 				System.out.println("termiante is being send " + sqs.sendMessageRequest(sendMessageRequest));
@@ -98,7 +99,7 @@ public class App {
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
 					for(Tag tag :instance.getTags()){
-						if(tag.getValue().equals("manager!!!"))
+						if(tag.getValue().equals("manager"))
 							found = true;
 					}
 				}
@@ -122,7 +123,7 @@ public class App {
 				ArrayList<Tag> tags = new ArrayList<Tag>();
 				Tag t = new Tag();
 				t.setKey("role");
-				t.setValue("manager!!!");
+				t.setValue("manager");
 				tags.add(t);
 				CreateTagsRequest ctr = new CreateTagsRequest();
 				ctr.setTags(tags);
@@ -143,9 +144,20 @@ public class App {
 	}
 
 	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
+		Map<String, MessageAttributeValue> messageAttributes;
+		
 		for(String fileKey:filesKeys){
-			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
-			 sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
+			messageAttributes = new HashMap<String, MessageAttributeValue>();
+			messageAttributes.put("fileKey", new MessageAttributeValue().withDataType("String").withStringValue(fileKey));
+			messageAttributes.put("bucketName", new MessageAttributeValue().withDataType("String").withStringValue(s3.getBucketName()));
+			messageAttributes.put("numberOfFilesPerWorker", new MessageAttributeValue().withDataType("String").withStringValue(String.valueOf(numberOfFilesPerWorker)));
+			messageAttributes.put("UUID", new MessageAttributeValue().withDataType("String").withStringValue(uuid.toString()));
+			
+			SendMessageRequest sendMessageRequest = new SendMessageRequest();
+			sendMessageRequest.withMessageBody("fileMessage");
+			sendMessageRequest.withQueueUrl(sqs.getMyQueueUrlSend());
+			sendMessageRequest.withMessageAttributes(messageAttributes);
+			sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
 			
 			sqs.sendMessageRequest(sendMessageRequest);
 			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
@@ -160,7 +172,8 @@ public class App {
 		messages = sqs.reciveMessages();
 		for(Message message:messages){
 			//if(message.getBody().split("###")[0].equals("completeFileMessage") && (message.getBody().split("###")[2].equals(uuid.toString()))) {
-			responseKeys.add(message.getBody().split("###")[1]);
+			////responseKeys.add(message.getBody().split("###")[1]);
+			responseKeys.add(message.getAttributes().get("fileKey"));
 			// delete the "processComplete" message
 			sqs.deleteMessages(Collections.singletonList(message));
 			//}
