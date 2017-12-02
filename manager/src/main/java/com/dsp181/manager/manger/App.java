@@ -77,7 +77,7 @@ class SenderWorkerQueue extends  Thread {
 }
 
 class ReceiverWorkerQueue extends  Thread {
-	
+
 	ExecutorService executor = Executors.newFixedThreadPool(5);
 	@Override
 	public void run() {
@@ -98,8 +98,8 @@ class ReceiverWorkerQueue extends  Thread {
 class ReceiverWorkerQueueSolo extends  Thread {
 	@Override
 	public void run() {
-			App.retriveMessageFromWorkersQueue();
-			App.receiverCount.decrementAndGet();
+		App.retriveMessageFromWorkersQueue();
+		App.receiverCount.decrementAndGet();
 	}
 }
 
@@ -192,9 +192,9 @@ public class App {
 		}
 		terminateInstancesRequest = new TerminateInstancesRequest();
 		terminateInstancesRequest.setInstanceIds(getManagerInstancesIds());
-	    terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
-	    
-	    System.out.println("\n!!!manager terminated !!!\n");
+		terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
+
+		System.out.println("\n!!!manager terminated !!!\n");
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -206,7 +206,7 @@ public class App {
 		List<String> filters = new ArrayList<String>();
 		filters.add("worker");
 		Filter filter = new Filter("tag-value", filters);
-		
+
 		filters = new ArrayList<String>();
 		filters.add("running");
 		Filter filter2 = new Filter("instance-state-name", filters);
@@ -220,7 +220,7 @@ public class App {
 		}
 		return instancesIds;
 	}
-	
+
 	private static ArrayList<String>  getManagerInstancesIds(){
 		ArrayList<String> instancesIds = new ArrayList<String>();
 
@@ -267,7 +267,7 @@ public class App {
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 				break;
 			}else{
-			System.out.println("error message " + message.getBody());
+				System.out.println("error message " + message.getBody());
 			}
 
 		}
@@ -313,7 +313,7 @@ public class App {
 			numberOfreviews = 0;
 			String[] fileInputStringSplit = fileInputString.split("###");
 			inputFileKey = fileInputStringSplit[0];
-			
+
 			String filekeytemp = inputFileKey.split("@@@")[1];
 			System.out.println("sending reviews from new input file - " + inputFileKey);
 			for (String sCurrentLine :fileInputStringSplit[1].split("\n")) {
@@ -322,38 +322,34 @@ public class App {
 				jsonReviews =  jsonObjLine.get("reviews").getAsJsonArray();
 
 				entries = new ArrayList<SendMessageBatchRequestEntry>();
-				
+
 				for(JsonElement review:  jsonReviews) {
 					reviewId = UUID.randomUUID().toString();
 					reviewText = ((JsonObject) review).get("text").getAsString();
-					reviewUrl = ((JsonObject) review).get("link").getAsString();
-					numberOfreviews++;
-					nnnnn++;
-					System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
-					inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
-					messageAttributes = new HashMap<String, MessageAttributeValue>();
-					messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(inputFileKey));
-					messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(reviewId));
-					messageAttributes.put("reviewText", new MessageAttributeValue().withDataType("String").withStringValue(reviewText));
-				
-					
-					entry = new  SendMessageBatchRequestEntry();
-					entry.withMessageAttributes(messageAttributes);
-					entry.withMessageBody("reviewMessage");
-					entry.withId(UUID.randomUUID().toString());
-					entries.add(entry);
-				//	sendMessageRequest = new SendMessageRequest();
-				//	sendMessageRequest.withMessageBody("reviewMessage");
-				//	sendMessageRequest.withQueueUrl(managerToWorkersQueue);
-				//	sendMessageRequest.withMessageAttributes(messageAttributes);
-				
-	
+					if(reviewText.split(" ").length < 100)
+					{
+						reviewUrl = ((JsonObject) review).get("link").getAsString();
+						numberOfreviews++;
+						nnnnn++;
+						System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
+						inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
+						messageAttributes = new HashMap<String, MessageAttributeValue>();
+						messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(inputFileKey));
+						messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(reviewId));
+						messageAttributes.put("reviewText", new MessageAttributeValue().withDataType("String").withStringValue(reviewText));
 
-					if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
-						numberOfreviews = 0;
-						numberOfWorkersToCreate++;
-						if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
-							createWorkers(1);
+						entry = new  SendMessageBatchRequestEntry();
+						entry.withMessageAttributes(messageAttributes);
+						entry.withMessageBody("reviewMessage");
+						entry.withId(UUID.randomUUID().toString());
+						entries.add(entry);
+
+						if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
+							numberOfreviews = 0;
+							numberOfWorkersToCreate++;
+							if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
+								createWorkers(1);
+							}
 						}
 					}
 				}
@@ -405,7 +401,7 @@ public class App {
 		Map<String,MessageAttributeValue> messageAttributes = null;
 		for(Message message:messages){
 			messageAttributes = message.getMessageAttributes();
-	//		messageSplitArray = message.getBody().split("###");
+			//		messageSplitArray = message.getBody().split("###");
 			inputFileKey =messageAttributes.get("inputFileKey").getStringValue();
 			reviewId = messageAttributes.get("reviewId").getStringValue();
 			reviewSentiment = messageAttributes.get("sentiment").getStringValue();
@@ -446,18 +442,18 @@ public class App {
 				writer.println(jsonPerReview);
 			}
 			writer.close();
-			
+
 			//upload summary file to S3
 			ArrayList<String> fileKey = s3.uploadFiles(new String[] {inputFileKey + "@@@" + "complete.txt"}, inputFileKey.split("@@@")[0]);
 			//send message to localApp containing the key of the summary file
 			HashMap<String,MessageAttributeValue> messageAttributes = new HashMap<String, MessageAttributeValue>();
 			messageAttributes.put("fileKey", new MessageAttributeValue().withDataType("String").withStringValue(fileKey.get(0)));
-					
+
 			SendMessageRequest sendMessageRequest = new SendMessageRequest();
 			sendMessageRequest.withMessageBody("completeFileMessage");
 			sendMessageRequest.withQueueUrl(managerTolocalAppQueue + inputFileHashmap.get(inputFileKey).getUuid());
 			sendMessageRequest.withMessageAttributes(messageAttributes);
-			
+
 			sqs.sendMessage(sendMessageRequest);
 			inputFileHashmap.remove(inputFileKey);
 		}    catch (FileNotFoundException e) {

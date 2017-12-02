@@ -31,6 +31,7 @@ import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
+import com.jayway.jsonpath.Predicate;
 
 import edu.stanford.nlp.util.Pair;
 
@@ -51,7 +52,9 @@ class entitiesThread extends Thread{
 	@Override 
 	public void run(){
 		ArrayList<String> tempEntities = App.nlp.findEntities(text);
-		tempEntities.removeIf(Objects::isNull);
+		System.out.println(tempEntities.toString());
+		tempEntities.removeIf(t->t.endsWith(":O"));
+		System.out.println(tempEntities.toString());
 		App.entitiesArray.set(index,tempEntities);
 		App.latch.countDown();
 	}
