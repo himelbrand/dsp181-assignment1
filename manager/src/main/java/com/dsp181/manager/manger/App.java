@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 //import org.omg.CORBA.PUBLIC_MEMBER;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -76,16 +77,29 @@ class SenderWorkerQueue extends  Thread {
 }
 
 class ReceiverWorkerQueue extends  Thread {
+	
+	ExecutorService executor = Executors.newFixedThreadPool(5);
 	@Override
 	public void run() {
 		while(!App.terminateWorkersSender || App.inputFileHashmap.size() > 0){
-			App.retriveMessageFromWorkersQueue();
+			if(App.inputFileHashmap.size() > 0 && App.receiverCount.get() < 6){
+				executor.execute(new ReceiverWorkerQueueSolo());
+				App.receiverCount.incrementAndGet();
+			}
 		}
 		App.executor.shutdown();
 		while (!App.executor.isTerminated()) {
 		}
 		App.latch.countDown();
 
+	}
+}
+
+class ReceiverWorkerQueueSolo extends  Thread {
+	@Override
+	public void run() {
+			App.retriveMessageFromWorkersQueue();
+			App.receiverCount.decrementAndGet();
 	}
 }
 
@@ -103,6 +117,7 @@ class SenderLocalAppQueue extends  Thread {
 
 public class App {
 
+	static AtomicInteger receiverCount = new AtomicInteger(0);
 	static SQS sqs;
 	static S3 s3;
 	static 	AmazonEC2 ec2;

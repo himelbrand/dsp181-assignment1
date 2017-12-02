@@ -3,9 +3,10 @@ package com.dsp181.manager.manger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class InputFile {
-	int numberOfAnalyzedReviews=0;
+	AtomicInteger numberOfAnalyzedReviews= new AtomicInteger(0);
 	ConcurrentHashMap<String, Review> reviewsHashMap = null;
 	String uuid ="";
 	int numberOfFilesPerWorker =0;
@@ -14,7 +15,7 @@ public class InputFile {
 	public InputFile(int numberOfAnalyzedReviews, String uuid,
 			int numberOfFilesPerWorker) {
 		super();
-		this.numberOfAnalyzedReviews = numberOfAnalyzedReviews;
+		this.numberOfAnalyzedReviews = new AtomicInteger(numberOfAnalyzedReviews);
 		this.reviewsHashMap = new ConcurrentHashMap<String, Review>();
 		this.uuid = uuid;
 		this.numberOfFilesPerWorker = numberOfFilesPerWorker;
@@ -26,13 +27,13 @@ public class InputFile {
 		return doneSending;
 	}
 	public int getNumberOfAnalyzedReviews() {
-		return numberOfAnalyzedReviews;
+		return numberOfAnalyzedReviews.get();
 	}
 	public void setNumberOfAnalyzedReviews(int numberOfAnalyzedReviews) {
-		this.numberOfAnalyzedReviews = numberOfAnalyzedReviews;
+		this.numberOfAnalyzedReviews.set(numberOfAnalyzedReviews);
 	}
 	public void incNumberOfAnalyzedReviews() {
-		this.numberOfAnalyzedReviews++;
+		this.numberOfAnalyzedReviews.incrementAndGet();
 	}
 	public Map<String, Review> getReviewsHashMap() {
 		return reviewsHashMap;
