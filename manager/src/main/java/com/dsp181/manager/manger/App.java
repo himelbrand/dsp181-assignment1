@@ -300,6 +300,7 @@ public class App {
 		JsonObject jsonObjLine;
 		JsonArray jsonReviews;
 		String inputFileKey,reviewId,reviewText,reviewUrl;
+		int reviewRating = 0;
 		SendMessageRequest sendMessageRequest = null;
 		HashMap<String,MessageAttributeValue> messageAttributes = null;
 		SendMessageBatchRequestEntry entry = null;
@@ -324,13 +325,14 @@ public class App {
 				for(JsonElement review:  jsonReviews) {
 					reviewId = UUID.randomUUID().toString();
 					reviewText = ((JsonObject) review).get("text").getAsString();
+					reviewRating = ((JsonObject) review).get("rating").getAsInt();
 					if(reviewText.split(" ").length < 100)
 					{
 						reviewUrl = ((JsonObject) review).get("link").getAsString();
 						numberOfreviews++;
 						nnnnn++;
 						System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
-						inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1));
+						inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1,reviewRating));
 						messageAttributes = new HashMap<String, MessageAttributeValue>();
 						messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(inputFileKey));
 						messageAttributes.put("reviewId", new MessageAttributeValue().withDataType("String").withStringValue(reviewId));
@@ -437,6 +439,7 @@ public class App {
 				jsonPerReview.addProperty("entities",((Review)pair.getValue()).getEntities());
 				jsonPerReview.addProperty("sentiment",((Review)pair.getValue()).getSentiment());
 				jsonPerReview.addProperty("url",((Review)pair.getValue()).getUrl());
+				jsonPerReview.addProperty("rating",((Review)pair.getValue()).getRating());
 				writer.println(jsonPerReview);
 			}
 			writer.close();

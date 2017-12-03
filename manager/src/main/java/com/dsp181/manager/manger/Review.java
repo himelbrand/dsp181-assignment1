@@ -7,9 +7,11 @@ public class Review {
 	private String url;
 	private int sentiment = -1;
 	private String entities = null;
-	public Review(String id,String review,String url,int sentiment)
+	private int rating = 0;
+	public Review(String id,String review,String url,int sentiment,int rating)
 	{
 		this.url = url;
+		this.rating = rating;
 		this.id = id;
 		this.review = review;
 		this.sentiment = sentiment;
@@ -49,6 +51,12 @@ public class Review {
 	}
 	public int getSentiment() {
 		return sentiment;
+	}
+	public int getRating() {
+		return rating;
+	}
+	public void setRating(int rating) {
+		this.rating = rating;
 	}
 	
 }

@@ -201,7 +201,7 @@ public class App {
 				htmlBuilder.append("<head><title> file " + fileName + "</title></head>");
 				htmlBuilder.append("<body>");
 				//String line;
-				String color;
+				String color, sarcasm;
 				Gson gson = new Gson(); 
 				JsonElement jelem;
 				JsonObject jobj; 
@@ -222,10 +222,12 @@ public class App {
 					default: color = "yellow";
 					break;
 					}
+					sarcasm = "sarcasm detected: "+ (jobj.get("sentiment").getAsInt() < (jobj.get("rating").getAsInt() - 2) ? "True" : "False");
 					htmlBuilder.append("</br>");
 					htmlBuilder.append("<div style=\"border-top:3px solid grey;border-bottom:3px solid grey;padding:10px;\">"+  
 												"<b>Review: </b> <span style=\"color:"+color +";\">"+ jobj.get("review").getAsString() + "</span>"+
 												"<br><b>Link: </b><a href=\"" +  jobj.get("url").getAsString() + "\">"+jobj.get("url").getAsString()+"</a>"
+												+"<br><b>"+sarcasm+"</b>"
 												+"<br><b>Sentiments: </b>"+jobj.get("sentiment").toString()+"<b>, Entities: </b>"+ jobj.get("entities").getAsString() + " </div>");
 
 				}
