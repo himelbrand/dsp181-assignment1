@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import com.amazonaws.AmazonClientException;
@@ -153,6 +155,33 @@ public class S3 {
         }
         return s3ObjectList;
     }
+    
+	public ArrayList<String> downloadFilesLocal(ArrayList<String> keys) throws IOException {
+
+		String sCurrentLine;
+		String file;
+		S3Object object ;
+		BufferedReader reader = null;
+		ArrayList<String> downloadedFilesArrayString = new ArrayList<String>();
+		for (String key : keys) {
+			System.out.println("Download loca object file key : " +key + " | bucketName : " + getBucketName());
+			object = s3.getObject(new GetObjectRequest(getBucketName(),key));
+			file = key.split("@@@")[1] + "\n";
+			reader = new BufferedReader(new InputStreamReader(object.getObjectContent()));
+			try {
+				while ((sCurrentLine = reader.readLine()) != null) {
+					file += sCurrentLine;
+					file += "\n";
+				}
+				downloadedFilesArrayString.add(file);
+			}finally{
+
+			}
+		}if(reader != null)
+			reader.close();
+		return downloadedFilesArrayString;
+	}
+	
     public void bucketObjectList() throws IOException {
             /*
              * List objects in your bucket by prefix - There are many options for

@@ -17,6 +17,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import software.amazon.ion.SystemSymbols;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -148,7 +150,6 @@ public class App {
 
 	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
 		Map<String, MessageAttributeValue> messageAttributes;
-		int i=0;
 		for(String fileKey:filesKeys){
 			messageAttributes = new HashMap<String, MessageAttributeValue>();
 			messageAttributes.put("fileKey", new MessageAttributeValue().withDataType("String").withStringValue(fileKey));
@@ -157,13 +158,13 @@ public class App {
 			messageAttributes.put("UUID", new MessageAttributeValue().withDataType("String").withStringValue(uuid.toString()));
 			
 			SendMessageRequest sendMessageRequest = new SendMessageRequest();
-			sendMessageRequest.withMessageBody("fileMessage" + i);
+			sendMessageRequest.withMessageBody("fileMessage" + UUID.randomUUID().toString());
 			sendMessageRequest.withQueueUrl(sqs.getMyQueueUrlSend());
 			sendMessageRequest.withMessageAttributes(messageAttributes);
 			sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
 			
-			sqs.sendMessageRequest(sendMessageRequest);
-			i++;
+			SendMessageResult result = sqs.sendMessageRequest(sendMessageRequest);
+			System.out.println("succeed sending message: "+result.getMessageId() + " " + result.getSequenceNumber());
 			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
 		System.out.println("send files");
@@ -189,21 +190,22 @@ public class App {
 	private static void downloadResulstAndCreateHtml(ArrayList<String> responseCompleteFilesKeys){
 
 		try {
-			ArrayList<S3Object> responseObjects;
-			responseObjects = s3.downloadFiles(responseCompleteFilesKeys.toArray(new String[responseCompleteFilesKeys.size()]));
-			for(S3Object responseObject:responseObjects)
+			ArrayList<String> responseFile;
+			responseFile = s3.downloadFilesLocal(responseCompleteFilesKeys);
+			for(String file:responseFile)
 			{
+				String[] fileSplit = file.split("\n");
+				String fileName = fileSplit[0];
 				StringBuilder htmlBuilder =new StringBuilder();
 				htmlBuilder.append("<html>");
-				htmlBuilder.append("<head><title> file " + responseObject.getObjectMetadata() + "</title></head>");
+				htmlBuilder.append("<head><title> file " + fileName + "</title></head>");
 				htmlBuilder.append("<body>");
-				BufferedReader reader = new BufferedReader(new InputStreamReader(responseObject.getObjectContent()));
-				String line;
+				//String line;
 				String color;
 				Gson gson = new Gson(); 
 				JsonElement jelem;
 				JsonObject jobj; 
-				while((line = reader.readLine()) != null) {
+				for(String line : Arrays.copyOfRange(fileSplit, 1, fileSplit.length)) {
 					jelem = gson.fromJson(line, JsonElement.class);
 					jobj = jelem.getAsJsonObject();
 					switch(Integer.parseInt(jobj.get("sentiment").toString())){
@@ -221,19 +223,25 @@ public class App {
 					break;
 					}
 					htmlBuilder.append("</br>");
-					htmlBuilder.append("<a href=\"" +  jobj.get("url").getAsString() + "\"> <div style=\"color:"+color +";\">"  + jobj.get("review").getAsString() + " " + jobj.get("entities").getAsString() + " </div></a>");
+					htmlBuilder.append("<div style=\"border-top:3px solid grey;border-bottom:3px solid grey;padding:10px;\">"+  
+												"<b>Review: </b> <span style=\"color:"+color +";\">"+ jobj.get("review").getAsString() + "</span>"+
+												"<br><b>Link: </b><a href=\"" +  jobj.get("url").getAsString() + "\">"+jobj.get("url").getAsString()+"</a>"
+												+"<br><b>Sentiments: </b>"+jobj.get("sentiment").toString()+"<b>, Entities: </b>"+ jobj.get("entities").getAsString() + " </div>");
 
 				}
 				htmlBuilder.append("</body></html>");
-				String keyName = responseObject.getKey().split("@@@")[1];
-				String fileOutputName =  outputFilesPathArray.get(filesPathArray.indexOf(keyName));
+
+				System.out.println("------");
+				System.out.println(filesPathArray);
+				System.out.println(fileName);
+				String fileOutputName =  outputFilesPathArray.get(filesPathArray.indexOf(fileName));
 				PrintWriter writer = new PrintWriter(fileOutputName +  ".html" , "UTF-8");
 				writer.print(htmlBuilder);
 				ArrayList<String> tempArrayList = new ArrayList<String>();
 				tempArrayList.add(fileOutputName+ ".html");
 				writer.close();
 				s3.uploadFiles(tempArrayList);
-				System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
+				//System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
 
 			}
 		} catch (IOException e) {

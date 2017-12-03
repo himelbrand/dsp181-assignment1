@@ -70,7 +70,7 @@ class SenderWorkerQueue extends  Thread {
 	@Override
 	public void run() {
 		while(!App.terminateWorkersSender || App.localAppDownloadedInputFiles.size() > 0){
-			App.sendMessagesToWorkersQueue(App.localAppDownloadedInputFiles);
+			App.sendMessagesToWorkersQueue();
 		}
 		App.latch.countDown();
 	}
@@ -293,7 +293,7 @@ public class App {
 	}
 
 
-	public static void sendMessagesToWorkersQueue(ConcurrentLinkedQueue<String> localAppDownloadedInputFiles){
+	public static void sendMessagesToWorkersQueue(){
 		int numberOfreviews =0;
 		int numberOfWorkersToCreate=0;
 		Gson gson = new Gson();
