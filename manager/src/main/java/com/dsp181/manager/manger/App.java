@@ -245,7 +245,7 @@ public class App {
 		Map<String,MessageAttributeValue> messageAttributes = null;
 		String inputFileKey,fileKey,bucketName,numberOfFilesPerWorker,UUID;
 		for(Message message:messages){
-			if(message.getBody().equals("fileMessage")) {
+			if(!message.getBody().equals("terminate")) {
 				messageAttributes = message.getMessageAttributes();
 				fileKey = messageAttributes.get("fileKey").getStringValue();
 				bucketName = messageAttributes.get("bucketName").getStringValue();
@@ -261,13 +261,11 @@ public class App {
 				//numberOfReviewsPerWorker = Math.min(numberOfReviewsPerWorker, Integer.parseInt(message.getBody().split("###")[3]));
 				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
-			}else if(message.getBody().equals("terminate")) {
+			}else{
 				System.out.println("retrive messages from localappqueue -----------------------  T E R M I N A T E -----------------------");
 				terminateLocalAppReciver = true;
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 				break;
-			}else{
-				System.out.println("error message " + message.getBody());
 			}
 
 		}

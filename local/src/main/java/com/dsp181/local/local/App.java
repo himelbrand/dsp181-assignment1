@@ -148,7 +148,7 @@ public class App {
 
 	private static 	void sendInputFilesLocation(ArrayList<String> filesKeys,int numberOfFilesPerWorker){
 		Map<String, MessageAttributeValue> messageAttributes;
-		
+		int i=0;
 		for(String fileKey:filesKeys){
 			messageAttributes = new HashMap<String, MessageAttributeValue>();
 			messageAttributes.put("fileKey", new MessageAttributeValue().withDataType("String").withStringValue(fileKey));
@@ -157,12 +157,13 @@ public class App {
 			messageAttributes.put("UUID", new MessageAttributeValue().withDataType("String").withStringValue(uuid.toString()));
 			
 			SendMessageRequest sendMessageRequest = new SendMessageRequest();
-			sendMessageRequest.withMessageBody("fileMessage");
+			sendMessageRequest.withMessageBody("fileMessage" + i);
 			sendMessageRequest.withQueueUrl(sqs.getMyQueueUrlSend());
 			sendMessageRequest.withMessageAttributes(messageAttributes);
 			sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
 			
 			sqs.sendMessageRequest(sendMessageRequest);
+			i++;
 			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
 		System.out.println("send files");
