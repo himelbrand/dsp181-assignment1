@@ -4,27 +4,20 @@ import java.io.BufferedReader;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
-//import com.amazonaws.AmazonClientException;
-//import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-//import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.services.s3.transfer.TransferManager;
 
 /**
  * This sample demonstrates how to make basic requests to Amazon S3 using
@@ -40,7 +33,7 @@ import com.amazonaws.services.s3.transfer.TransferManager;
  * http://aws.amazon.com/security-credentials
  */
 public class S3 {
-	private AWSCredentialsProvider credentialsProvider;
+	
 	private AmazonS3 s3;
 	public void launch(AWSCredentialsProvider credentialsProvider) {
 		/*
@@ -53,7 +46,7 @@ public class S3 {
 				.withCredentials(credentialsProvider)
 				.withRegion("us-west-2")
 				.build();
-		this.credentialsProvider = credentialsProvider;
+		
 	}
 
 	public ArrayList<String> uploadFiles(String[] files,String bucketName) {
@@ -169,22 +162,5 @@ public class S3 {
 		s3.deleteBucket(bucketName);
 	}
 
-
-	/**
-	 * Displays the contents of the specified input stream as text.
-	 *
-	 * @param input The input stream to display as text.
-	 * @throws IOException
-	 */
-	private static void displayTextInputStream(InputStream input) throws IOException {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-		while (true) {
-			String line = reader.readLine();
-			if (line == null) break;
-
-			System.out.println("    " + line);
-		}
-		System.out.println();
-	}
 
 }

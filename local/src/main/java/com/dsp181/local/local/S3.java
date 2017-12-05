@@ -6,11 +6,8 @@ import java.io.BufferedReader;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import com.amazonaws.AmazonClientException;
@@ -225,22 +222,5 @@ public class S3 {
         s3.deleteBucket(bucketName);
     }
 
-
-    /**
-     * Displays the contents of the specified input stream as text.
-     *
-     * @param input The input stream to display as text.
-     * @throws IOException
-     */
-    private static void displayTextInputStream(InputStream input) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-        while (true) {
-            String line = reader.readLine();
-            if (line == null) break;
-
-            System.out.println("    " + line);
-        }
-        System.out.println();
-    }
 
 }

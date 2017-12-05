@@ -26,36 +26,7 @@
 			<artifactId>aws-java-sdk</artifactId>
 			<version>1.11.106</version>
 		</dependency>
-	<!-- 			<dependency>
-	<groupId>com.googlecode.efficient-java-matrix-library</groupId>
-    <artifactId>ejml</artifactId>
-    <version>0.23</version>
-	<scope>system</scope>
-	<systemPath>/Users/Shahar/Desktop/dasd/ejml-0.23.jar</systemPath>
-</dependency>
-				<dependency>
-	  <groupId>de.jollyday</groupId>
-    <artifactId>jollyday</artifactId>  
-    <version>0.4.7</version>
-	<scope>compile</scope>
-	<systemPath>/Users/Shahar/Desktop/dasd/jollyday-0.4.7.jar</systemPath>
-</dependency>
-				<dependency>
-  <groupId>edu.stanford.nlp</groupId>
-    <artifactId>stanford-corenlp</artifactId> 
-    <version>3.3.0</version>
-	<scope>compile</scope>
-	<systemPath>/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0.jar</systemPath>
-</dependency>
-				<dependency>
-  <groupId>edu.stanford.nlp</groupId>
-    <artifactId>stanford-corenlp</artifactId> 
-    <version>3.3.0</version>
-	<scope>compile</scope>
-	<classifier>models</classifier>
-	<systemPath>/Users/Shahar/Desktop/dasd/stanford-corenlp-3.3.0-models.jar</systemPath>
-</dependency>
- -->
+
 	</dependencies>
 	<build>
   <plugins>

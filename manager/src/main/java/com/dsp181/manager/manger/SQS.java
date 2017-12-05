@@ -62,7 +62,8 @@ public class SQS {
                System.out.println();
                System.out.println("Creating a new SQS queue called " + queueUrl + ".\n");
                CreateQueueRequest createQueueRequest = new CreateQueueRequest(queueUrl);
-                String myqueue = sqs.createQueue(createQueueRequest).getQueueUrl();
+               String myqueue = sqs.createQueue(createQueueRequest).getQueueUrl();
+               System.out.println(myqueue);
               
                
             }catch (AmazonServiceException ase) {

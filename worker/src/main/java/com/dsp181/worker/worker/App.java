@@ -6,32 +6,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+
 
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.directconnect.model.NewPrivateVirtualInterfaceAllocation;
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.AttachClassicLinkVpcRequest;
-import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
-import com.amazonaws.services.ec2.model.DescribeInstancesResult;
-import com.amazonaws.services.ec2.model.Filter;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
-import com.jayway.jsonpath.Predicate;
+
 
 import edu.stanford.nlp.util.Pair;
 
@@ -80,10 +64,10 @@ class sentimentThread extends Thread{
 
 public class App 
 {
-	static int[] sentimentArray;// = new int[10];
-	static ArrayList<ArrayList<String> > entitiesArray;// = new ArrayList<ArrayList<String>>(10);
+	static int[] sentimentArray;
+	static ArrayList<ArrayList<String> > entitiesArray;
 
-	static CountDownLatch latch ;//= new CountDownLatch(3);
+	static CountDownLatch latch ;
 	static SQS sqs;
 	static NLPClass nlp = new NLPClass();
 

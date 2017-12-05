@@ -1,9 +1,6 @@
 package com.dsp181.manager.manger;
-import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-//import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -21,15 +18,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-//import org.omg.CORBA.PUBLIC_MEMBER;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.cloudfront.model.StreamingDistribution;
-import com.amazonaws.services.directconnect.model.NewBGPPeer;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.s3.model.S3Object;
@@ -37,17 +30,14 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
-import com.amazonaws.services.sqs.model.SendMessageBatchResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.ec2.model.*;
-import com.amazonaws.services.kinesisanalytics.model.Input;
 
 /**
  * Hello world!
@@ -123,7 +113,7 @@ public class App {
 	static 	AmazonEC2 ec2;
 	static AtomicInteger NumWorkersInstancesIds = new AtomicInteger(0);
 	static ConcurrentHashMap<String, InputFile> inputFileHashmap = new ConcurrentHashMap<String, InputFile>();
-
+	static PrintWriter logWriter; 
 	static HashMap<Integer,   HashMap<String, AtomicInteger>> workersLogs = new HashMap<Integer , HashMap<String, AtomicInteger>>();
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
@@ -139,7 +129,15 @@ public class App {
 
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
 		AWSCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
-
+		try {
+			logWriter = new PrintWriter("complete-logs.txt", "UTF-8");
+		} catch (FileNotFoundException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (UnsupportedEncodingException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 		sqs = new SQS();
 		sqs.launch(credentialsProvider);
 		sqs.createQueue(managerToWorkersQueue);
@@ -163,6 +161,7 @@ public class App {
 		threadArrayList.get(2).start();
 
 		try {
+			
 			System.out.println("\nlatch enter await\n");
 			latch.await();
 			System.out.println("\nlatch exit await\n");
@@ -178,9 +177,8 @@ public class App {
 			terminateInstancesRequest.setInstanceIds(workersInstancesIds);
 			terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
 
-
+			writeStatisticsFile();
 			//Wait for instances to terminate
-			DescribeInstancesResult terminatedInstacesIds = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(workersInstancesIds));
 			for(InstanceStateChange instance :terminateInstancesResult.getTerminatingInstances())
 			{
 				Instance myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
@@ -263,7 +261,7 @@ public class App {
 				inputFileKey = bucketName +"@@@" + fileKey;
 
 				System.out.println();
-				System.out.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
+				logWriter.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
 				inputFileHashmap.put(inputFileKey,new InputFile(0, UUID, Integer.parseInt(numberOfFilesPerWorker)));
 
 				keysAndBucketsHashMap.put(fileKey,bucketName);
@@ -310,7 +308,6 @@ public class App {
 		JsonArray jsonReviews;
 		String inputFileKey,reviewId,reviewText,reviewUrl;
 		int reviewRating = 0;
-		SendMessageRequest sendMessageRequest = null;
 		HashMap<String,MessageAttributeValue> messageAttributes = null;
 		SendMessageBatchRequestEntry entry = null;
 		ArrayList<SendMessageBatchRequestEntry> entries = null;
@@ -340,7 +337,7 @@ public class App {
 						reviewUrl = ((JsonObject) review).get("link").getAsString();
 						numberOfreviews++;
 						nnnnn++;
-						System.out.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
+						logWriter.println("send message number - " + nnnnn + " | " + reviewId +  " --- " + filekeytemp);
 						inputFileHashmap.get(inputFileKey).getReviewsHashMap().put(reviewId,new Review(reviewId,reviewText,reviewUrl,-1,reviewRating));
 						messageAttributes = new HashMap<String, MessageAttributeValue>();
 						messageAttributes.put("inputFileKey", new MessageAttributeValue().withDataType("String").withStringValue(inputFileKey));
@@ -490,6 +487,12 @@ public class App {
 			e.printStackTrace();
 		}
 	}
+	public static void writeStatisticsFile(){
+		logWriter.println("Workers stats:");
+		logWriter.println(workersLogs);
+		logWriter.close();
+		s3.uploadFiles(new String[] {"complete-logs.txt"}, "200863843203822309ass1");
+	}
 	private static String getUserDataScript(int workerId){
 		ArrayList<String> lines = new ArrayList<String>();
 		lines.add("#! /bin/bash");
@@ -505,7 +508,7 @@ public class App {
 		lines.add("sudo wget http://central.maven.org/maven2/de/jollyday/jollyday/0.4.7/jollyday-0.4.7.jar");
 		lines.add("sudo wget https://s3.amazonaws.com/ass1jars203822300/worker.zip");
 		lines.add("sudo unzip -P 123456 worker.zip");
-		lines.add("java -cp .:worker-0.0.1-SNAPSHOT.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker-0.0.1-SNAPSHOT.jar ");
+		lines.add("java -cp .:worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar worker.jar ");
 		String str = new String(Base64.getEncoder().encode(join(lines, "\n").getBytes()));
 		return str;
 	}
