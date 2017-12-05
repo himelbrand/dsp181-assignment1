@@ -120,6 +120,7 @@ public class App
 					MessageAttributeValue inputFileKey = new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("inputFileKey").getStringValue());
 					MessageAttributeValue reviewId = new MessageAttributeValue().withDataType("String").withStringValue(receiveMessageAttributes.get("reviewId").getStringValue());
 					
+					
 					ids.add(i, new Pair<MessageAttributeValue, MessageAttributeValue>(inputFileKey,reviewId));
 					i++;
 				}
@@ -138,7 +139,7 @@ public class App
 					messageAttributes.put("reviewId", ids.get(j).second);
 					messageAttributes.put("sentiment", new MessageAttributeValue().withDataType("String").withStringValue(String.valueOf(sentimentArray[j])));
 					messageAttributes.put("entities", new MessageAttributeValue().withDataType("String").withStringValue(entitiesArray.get(j).toString()));
-					messageAttributes.put("workerId", new MessageAttributeValue().withDataType("String").withStringValue(entitiesArray.get(j).toString()));
+					messageAttributes.put("WorkerId", new MessageAttributeValue().withDataType("String").withStringValue(System.getenv("WorkerId")));
 					entry = new  SendMessageBatchRequestEntry();
 					entry.withMessageBody("reviewAnalyzeComplete");
 					entry.withMessageAttributes(messageAttributes);

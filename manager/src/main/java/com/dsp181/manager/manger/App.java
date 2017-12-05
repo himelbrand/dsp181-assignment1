@@ -121,9 +121,10 @@ public class App {
 	static SQS sqs;
 	static S3 s3;
 	static 	AmazonEC2 ec2;
-
+	static AtomicInteger NumWorkersInstancesIds = new AtomicInteger(0);
 	static ConcurrentHashMap<String, InputFile> inputFileHashmap = new ConcurrentHashMap<String, InputFile>();
-
+	
+	static HashMap<Integer,   HashMap<String, AtomicInteger>> workersLogs = new HashMap<Integer , HashMap<String, AtomicInteger>>();
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
 	static ConcurrentLinkedQueue<String> inputFileKeyArrayList = new ConcurrentLinkedQueue<String>(); 
@@ -152,7 +153,7 @@ public class App {
 				.withRegion("us-west-2")
 				.build();
 
-
+		NumWorkersInstancesIds = new AtomicInteger(getWorkersInstancesIds().size());
 		threadArrayList.add(new ReciverLocalAppQueue());
 		threadArrayList.get(0).setPriority(Thread.MAX_PRIORITY);
 		threadArrayList.get(0).start();
@@ -347,9 +348,13 @@ public class App {
 						if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
 							numberOfreviews = 0;
 							numberOfWorkersToCreate++;
-							if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
-								createWorkers(1);
+							synchronized (NumWorkersInstancesIds) {
+								if(numberOfWorkersToCreate > NumWorkersInstancesIds.get() &&  NumWorkersInstancesIds.get() < 19){
+									System.out.println("create worker - " + numberOfWorkersToCreate);
+									createWorkers(1);
+								}
 							}
+
 						}
 					}
 				}
@@ -359,8 +364,11 @@ public class App {
 			if(numberOfreviews != 0){
 				numberOfreviews = 0;
 				numberOfWorkersToCreate++;
-				if(numberOfWorkersToCreate > getWorkersInstancesIds().size() &&  getWorkersInstancesIds().size() < 19){
-					createWorkers(1);
+				synchronized (NumWorkersInstancesIds) {
+					if(numberOfWorkersToCreate > NumWorkersInstancesIds.get() &&  NumWorkersInstancesIds.get() < 19){
+						System.out.println("create worker - " + numberOfWorkersToCreate);
+						createWorkers(1);
+					}
 				}
 			}
 			inputFileHashmap.get(inputFileKey).setDoneSending(true);
@@ -371,8 +379,13 @@ public class App {
 		try {
 			RunInstancesRequest request = new RunInstancesRequest("ami-0a00ce72", numberOfWorkersToCreate, numberOfWorkersToCreate);
 			request.setInstanceType(InstanceType.T2Medium.toString());
-			request.setUserData(getUserDataScript());
+			request.setUserData(getUserDataScript(NumWorkersInstancesIds.get()));
 			List<Instance> instances = ec2.runInstances(request).getReservation().getInstances();
+			for(Instance instance : instances){
+				workersLogs.put(NumWorkersInstancesIds.get(),new HashMap<String, AtomicInteger>());
+				workersLogs.get(NumWorkersInstancesIds.get()).put(instance.getInstanceId(), new AtomicInteger(0));
+			}
+
 			ArrayList<Tag> tags = new ArrayList<Tag>();
 			Tag t = new Tag();
 			t.setKey("role");
@@ -384,13 +397,14 @@ public class App {
 				ctr.withResources(instance.getInstanceId());
 				ec2.createTags(ctr);
 			}
-			System.out.println("Run new worker - " + getWorkersInstancesIds().size());
+			System.out.println("Run new worker - " + NumWorkersInstancesIds.get());
 		} catch (AmazonServiceException ase) {
 			System.out.println("Caught Exception: " + ase.getMessage());
 			System.out.println("Reponse Status Code: " + ase.getStatusCode());
 			System.out.println("Error Code: " + ase.getErrorCode());
 			System.out.println("Request ID: " + ase.getRequestId());
 		}
+		NumWorkersInstancesIds.incrementAndGet();
 	}
 
 	public static void retriveMessageFromWorkersQueue(){
@@ -413,6 +427,9 @@ public class App {
 				inputFile.getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
 				inputFile.incNumberOfAnalyzedReviews();
 				System.out.println("receive message number - " + inputFile.getReviewsHashMap().size() + "|" + inputFile.getNumberOfAnalyzedReviews() + " | " + reviewId );
+				Map.Entry<String, AtomicInteger> entry = workersLogs.get(Integer.parseInt(messageAttributes.get("WorkerId").getStringValue())).entrySet().iterator().next();
+				entry.getValue().incrementAndGet();
+				System.out.println(workersLogs);
 				if(inputFile.isDoneSending() && inputFile.getNumberOfAnalyzedReviews() == inputFile.getReviewsHashMap().size()){
 					System.out.println("finish analyze file size : " + inputFile.getReviewsHashMap().size());
 					Thread worker = new SenderLocalAppQueue(inputFileKey);
@@ -465,13 +482,15 @@ public class App {
 			e.printStackTrace();
 		}
 	}
-	private static String getUserDataScript(){
+	private static String getUserDataScript(int workerId){
 		ArrayList<String> lines = new ArrayList<String>();
 		lines.add("#! /bin/bash");
 		lines.add("sudo apt-get update");
 		lines.add("sudo apt-get install openjdk-8-jre-headless -y");
 		lines.add("sudo apt-get install wget -y");
 		lines.add("sudo apt-get install unzip -y");
+		lines.add("echo export WorkerId=" + workerId +" >> ~/.bash_profile");
+		lines.add("source ~/.bash_profile");
 		lines.add("sudo wget http://repo1.maven.org/maven2/com/googlecode/efficient-java-matrix-library/ejml/0.23/ejml-0.23.jar");
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0.jar");
 		lines.add("sudo wget http://repo1.maven.org/maven2/edu/stanford/nlp/stanford-corenlp/3.3.0/stanford-corenlp-3.3.0-models.jar");
