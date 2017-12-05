@@ -123,7 +123,7 @@ public class App {
 	static 	AmazonEC2 ec2;
 	static AtomicInteger NumWorkersInstancesIds = new AtomicInteger(0);
 	static ConcurrentHashMap<String, InputFile> inputFileHashmap = new ConcurrentHashMap<String, InputFile>();
-	
+
 	static HashMap<Integer,   HashMap<String, AtomicInteger>> workersLogs = new HashMap<Integer , HashMap<String, AtomicInteger>>();
 	static boolean terminateLocalAppReciver=false,terminateWorkersSender=false,terminateFinal=false;
 	static Object lock = new Object();
@@ -171,29 +171,37 @@ public class App {
 			e.printStackTrace();}
 
 		ArrayList<String> workersInstancesIds = getWorkersInstancesIds();
-		TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest();
-		terminateInstancesRequest.setInstanceIds(workersInstancesIds);
-		TerminateInstancesResult terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
+		TerminateInstancesRequest terminateInstancesRequest;
+		TerminateInstancesResult terminateInstancesResult;
+		if(!workersInstancesIds.isEmpty()){
+			terminateInstancesRequest = new TerminateInstancesRequest();
+			terminateInstancesRequest.setInstanceIds(workersInstancesIds);
+			terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
 
-		//Wait for instances to terminate
-		DescribeInstancesResult terminatedInstacesIds = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(workersInstancesIds));
-		for(InstanceStateChange instance :terminateInstancesResult.getTerminatingInstances())
-		{
-			Instance myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
-			while (!myInstance.getState().getName().equals("terminated")) {
-				try {
-					Thread.sleep(5000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+
+			//Wait for instances to terminate
+			DescribeInstancesResult terminatedInstacesIds = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(workersInstancesIds));
+			for(InstanceStateChange instance :terminateInstancesResult.getTerminatingInstances())
+			{
+				Instance myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
+				while (!myInstance.getState().getName().equals("terminated")) {
+					try {
+						Thread.sleep(5000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					System.out.println(instance.getCurrentState().getName()  + " " + instance.getInstanceId());
+					myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 				}
-				System.out.println(instance.getCurrentState().getName()  + " " + instance.getInstanceId());
-				myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 			}
 		}
-		terminateInstancesRequest = new TerminateInstancesRequest();
-		terminateInstancesRequest.setInstanceIds(getManagerInstancesIds());
-		terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
+		ArrayList<String> managerIds = getManagerInstancesIds();
+		if(!managerIds.isEmpty()){
+			terminateInstancesRequest = new TerminateInstancesRequest();
+			terminateInstancesRequest.setInstanceIds(getManagerInstancesIds());
+			terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
+		}
 
 		System.out.println("\n!!!manager terminated !!!\n");
 	}
@@ -227,7 +235,7 @@ public class App {
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest();
 		List<String> filters = new ArrayList<String>();
-		filters.add("manager!!!");
+		filters.add("manager");
 		Filter filter = new Filter("tag-value", filters);
 		DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter));
 		List<Reservation> reservations = result.getReservations();
