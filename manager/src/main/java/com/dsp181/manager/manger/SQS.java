@@ -100,7 +100,7 @@ public class SQS {
     public List<Message> reciveMessages(String queueUrl) {
         // Receive messages
        // System.out.println("Receiving messages from " + queueUrl + " .\n");
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20)
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl).withQueueUrl(queueUrl).withWaitTimeSeconds(20).withMaxNumberOfMessages(10)
         		.withMessageAttributeNames("inputFileKey","reviewId","sentiment","entities","WorkerId");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;
@@ -112,6 +112,7 @@ public class SQS {
         ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
         		.withQueueUrl(queueUrl)
         		.withWaitTimeSeconds(20)
+        		.withMaxNumberOfMessages(1)
         		.withMessageAttributeNames("fileKey","bucketName","numberOfFilesPerWorker","UUID");
         List<Message> messages = sqs.receiveMessage(receiveMessageRequest).getMessages();
         return messages;

@@ -60,8 +60,6 @@ public class S3 {
 			key = file.getName().replace('\\', '_').replace('/', '_').replace(':', '_');
 			keys.add(key);
 			
-			System.out.println("Uploading a new object to S3 from a file , bucketName: " + bucketName +" key:" + key + "\n");
-			
 			PutObjectRequest req = new PutObjectRequest(bucketName, key, file);
 			s3.putObject(req);
 		}
@@ -86,7 +84,6 @@ public class S3 {
 
 		ArrayList<S3Object> s3ObjectList = new ArrayList<S3Object>();
 		for (Map.Entry<String,String> entry : keysAndBuckets.entrySet()) {
-			System.out.println("Download object file key : " + entry.getKey() + " | bucketName : " + entry.getValue());
 			S3Object object = s3.getObject(new GetObjectRequest(entry.getValue().toString(), entry.getKey().toString()));
 			s3ObjectList.add(object);
 			//System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
@@ -102,7 +99,6 @@ public class S3 {
 		BufferedReader reader = null;
 		ArrayList<String> downloadedFilesArrayString = new ArrayList<String>();
 		for (Map.Entry<String,String> entry : keysAndBuckets.entrySet()) {
-			System.out.println("Download loca object file key : " + entry.getKey() + " | bucketName : " + entry.getValue());
 			object = s3.getObject(new GetObjectRequest(entry.getValue().toString(), entry.getKey().toString()));
 			file = entry.getValue()+"@@@" + entry.getKey() +"###";
 			reader = new BufferedReader(new InputStreamReader(object.getObjectContent()));
@@ -146,7 +142,6 @@ public class S3 {
 		 * Delete an object - Unless versioning has been turned on for your bucket,
 		 * there is no way to undelete an object, so use caution when deleting objects.
 		 */
-		System.out.println("Deleting an object\n");
 		for (String key : keys) {
 			s3.deleteObject(bucketName, key);
 		}
@@ -158,8 +153,11 @@ public class S3 {
 		 * deleted, so remember to delete any objects from your buckets before
 		 * you try to delete them.
 		 */
-		System.out.println("Deleting bucket " + bucketName + "\n");
 		s3.deleteBucket(bucketName);
+	}
+	
+	public void createBucket(String bucketName){
+		s3.createBucket(bucketName);
 	}
 
 

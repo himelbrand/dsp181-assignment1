@@ -3,7 +3,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
+import java.util.ArrayList; 
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,11 +44,23 @@ import com.amazonaws.services.ec2.model.*;
  *
  */
 class ReciverLocalAppQueue extends  Thread {
+	Runtime runtime = Runtime.getRuntime();
 	@Override
 	public void run() {
 		while(!App.terminateLocalAppReciver){
-			HashMap<String, String> keysAndBucketsHashMap = App.retriveMessageFromLocalAppQueue();
-			App.localAppDownloadedInputFiles.addAll(App.retriveFilesFromS3Local(keysAndBucketsHashMap));
+			while((((float) runtime.freeMemory() / (float) runtime.totalMemory()) * 100)  > 20){
+				HashMap<String, String> keysAndBucketsHashMap = App.retriveMessageFromLocalAppQueue();
+				App.localAppDownloadedInputFiles.addAll(App.retriveFilesFromS3Local(keysAndBucketsHashMap));
+				if(keysAndBucketsHashMap.size() == 0 ){
+					try {
+						Thread.sleep(3000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+			System.out.println("low on ram memory - " + (((float) runtime.freeMemory() / (float) runtime.totalMemory()) * 100));
 		}
 		App.terminateWorkersSender = true;
 		App.latch.countDown();
@@ -60,7 +72,16 @@ class SenderWorkerQueue extends  Thread {
 	@Override
 	public void run() {
 		while(!App.terminateWorkersSender || App.localAppDownloadedInputFiles.size() > 0){
+			if(App.localAppDownloadedInputFiles.size() != 0){
 			App.sendMessagesToWorkersQueue();
+			}else{
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
 		App.latch.countDown();
 	}
@@ -75,6 +96,13 @@ class ReceiverWorkerQueue extends  Thread {
 			if(App.inputFileHashmap.size() > 0 && App.receiverCount.get() < 6){
 				executor.execute(new ReceiverWorkerQueueSolo());
 				App.receiverCount.incrementAndGet();
+			}else{
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 		App.executor.shutdown();
@@ -123,10 +151,9 @@ public class App {
 	static ExecutorService executor = Executors.newFixedThreadPool(1);
 	static CountDownLatch latch = new CountDownLatch(3);
 	static String managerToWorkersQueue = "managerToWorkersQueue",workersToManagerQueue="workersToManagerQueue",localAppToManagerQueue="localAppToManagerQueue.fifo",managerTolocalAppQueue="managerTolocalAppQueue-";
-	static Runtime runtime = Runtime.getRuntime();
-	static int mb = 1024*1024;
-	public static void main( String[] args ){
 
+
+	public static void main( String[] args ){
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
 		AWSCredentialsProvider credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
 		try {
@@ -161,13 +188,18 @@ public class App {
 		threadArrayList.get(2).start();
 
 		try {
-			
-			System.out.println("\nlatch enter await\n");
 			latch.await();
-			System.out.println("\nlatch exit await\n");
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();}
+
+		terminateWorkersAndManager();
+		System.out.println("\n!!!manager terminated !!!\n");
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+
+	private static void terminateWorkersAndManager(){
 
 		ArrayList<String> workersInstancesIds = getWorkersInstancesIds();
 		TerminateInstancesRequest terminateInstancesRequest;
@@ -184,12 +216,11 @@ public class App {
 				Instance myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 				while (!myInstance.getState().getName().equals("terminated")) {
 					try {
-						Thread.sleep(5000);
+						Thread.sleep(3000);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-					System.out.println(instance.getCurrentState().getName()  + " " + instance.getInstanceId());
 					myInstance  = ec2.describeInstances(new DescribeInstancesRequest().withInstanceIds(instance.getInstanceId())).getReservations().get(0).getInstances().get(0);
 				}
 			}
@@ -200,12 +231,7 @@ public class App {
 			terminateInstancesRequest.setInstanceIds(getManagerInstancesIds());
 			terminateInstancesResult = ec2.terminateInstances(terminateInstancesRequest);
 		}
-
-		System.out.println("\n!!!manager terminated !!!\n");
 	}
-
-	////////////////////////////////////////////////////////////////////////////
-
 	private static ArrayList<String>  getWorkersInstancesIds(){
 		ArrayList<String> instancesIds = new ArrayList<String>();
 
@@ -260,16 +286,12 @@ public class App {
 				UUID = messageAttributes.get("UUID").getStringValue();
 				inputFileKey = bucketName +"@@@" + fileKey;
 
-				System.out.println();
 				logWriter.println("retrive messages from localappqueue , inputFileKey:" + inputFileKey);
 				inputFileHashmap.put(inputFileKey,new InputFile(0, UUID, Integer.parseInt(numberOfFilesPerWorker)));
 
 				keysAndBucketsHashMap.put(fileKey,bucketName);
-				//numberOfReviewsPerWorker = Math.min(numberOfReviewsPerWorker, Integer.parseInt(message.getBody().split("###")[3]));
-				// delete the message from queue
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 			}else{
-				System.out.println("retrive messages from localappqueue -----------------------  T E R M I N A T E -----------------------");
 				terminateLocalAppReciver = true;
 				sqs.deleteMessages(Collections.singletonList(message),localAppToManagerQueue);
 				break;
@@ -320,7 +342,6 @@ public class App {
 			inputFileKey = fileInputStringSplit[0];
 
 			String filekeytemp = inputFileKey.split("@@@")[1];
-			System.out.println("sending reviews from new input file - " + inputFileKey);
 			for (String sCurrentLine :fileInputStringSplit[1].split("\n")) {
 
 				jsonObjLine = gson.fromJson(sCurrentLine,JsonElement.class).getAsJsonObject();
@@ -353,9 +374,11 @@ public class App {
 						if(numberOfreviews == inputFileHashmap.get(inputFileKey).getNumberOfFilesPerWorker()){
 							numberOfreviews = 0;
 							numberOfWorkersToCreate++;
+							
 							synchronized (NumWorkersInstancesIds) {
+								
 								if(numberOfWorkersToCreate > NumWorkersInstancesIds.get() &&  NumWorkersInstancesIds.get() < 19){
-									System.out.println("create worker - " + numberOfWorkersToCreate);
+								
 									createWorkers(1);
 								}
 							}
@@ -371,7 +394,6 @@ public class App {
 				numberOfWorkersToCreate++;
 				synchronized (NumWorkersInstancesIds) {
 					if(numberOfWorkersToCreate > NumWorkersInstancesIds.get() &&  NumWorkersInstancesIds.get() < 19){
-						System.out.println("create worker - " + numberOfWorkersToCreate);
 						createWorkers(1);
 					}
 				}
@@ -402,7 +424,6 @@ public class App {
 				ctr.withResources(instance.getInstanceId());
 				ec2.createTags(ctr);
 			}
-			System.out.println("Run new worker - " + NumWorkersInstancesIds.get());
 		} catch (AmazonServiceException ase) {
 			System.out.println("Caught Exception: " + ase.getMessage());
 			System.out.println("Reponse Status Code: " + ase.getStatusCode());
@@ -431,12 +452,9 @@ public class App {
 			if(inputFile !=null && inputFile.getReviewsHashMap().get(reviewId).getEntities() == null){
 				inputFile.getReviewsHashMap().get(reviewId).setEntitiesAndSentiment(reviewEntities,Integer.parseInt(reviewSentiment));
 				inputFile.incNumberOfAnalyzedReviews();
-				System.out.println("receive message number - " + inputFile.getReviewsHashMap().size() + "|" + inputFile.getNumberOfAnalyzedReviews() + " | " + reviewId );
 				Map.Entry<String, AtomicInteger> entry = workersLogs.get(Integer.parseInt(messageAttributes.get("WorkerId").getStringValue())).entrySet().iterator().next();
 				entry.getValue().incrementAndGet();
-				System.out.println(workersLogs);
 				if(inputFile.isDoneSending() && inputFile.getNumberOfAnalyzedReviews() == inputFile.getReviewsHashMap().size()){
-					System.out.println("finish analyze file size : " + inputFile.getReviewsHashMap().size());
 					Thread worker = new SenderLocalAppQueue(inputFileKey);
 					executor.execute(worker);
 				}
@@ -450,7 +468,6 @@ public class App {
 
 	public static void writeSummaryFileIfNeeded(String inputFileKey){
 		try {
-			System.out.println("write summary file for - " + inputFileKey);
 			JsonObject jsonPerReview = new JsonObject();
 			PrintWriter writer = new PrintWriter(inputFileKey + "@@@" + "complete.txt", "UTF-8");
 			Iterator<Entry<String, Review>> it = inputFileHashmap.get(inputFileKey).getReviewsHashMap().entrySet().iterator();
@@ -491,6 +508,7 @@ public class App {
 		logWriter.println("Workers stats:");
 		logWriter.println(workersLogs);
 		logWriter.close();
+		s3.createBucket("200863843203822309ass1");
 		s3.uploadFiles(new String[] {"complete-logs.txt"}, "200863843203822309ass1");
 	}
 	private static String getUserDataScript(int workerId){

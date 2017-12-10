@@ -25,12 +25,19 @@ public class App {
 	private static AmazonEC2 ec2;
 	private static UUID uuid;
 	private static SQS sqs;
-	private static S3 s3;
+	private static S3 s3; 
 	private static int numberOfFilesPerWorker =0;
 	private static boolean terminate = false; 
 	private static ArrayList<String> filesPathArray = new ArrayList<String>(),outputFilesPathArray = new ArrayList<String>();
 	public static void main(String[] args) throws IOException {
 
+		// get details from args array
+		if(!getArgsDetails(args)){
+			System.out.println("Argumant format isn't correct");
+			return;
+		}
+		
+		long startTime = System.nanoTime();
 		BasicAWSCredentials awsCreds = new BasicAWSCredentials("AKIAIPQVA435AAQCCUIQ", "M3OyJZdbJjb6DRL5pHCglZk2mFYh7DLcQ46JJaik");
 
 		credentialsProvider = new AWSStaticCredentialsProvider(awsCreds);
@@ -48,8 +55,7 @@ public class App {
 		sqs.launch(credentialsProvider,uuid);
 
 
-		// get details from args array
-		getArgsDetails(args);
+
 
 		// check if the manager node is active and run it otherwise
 		launchManagerNode();
@@ -62,7 +68,7 @@ public class App {
 		// send termination message
 		if(terminate){
 			SendMessageRequest sendMessageRequest = new SendMessageRequest(sqs.getMyQueueUrlSend(), "terminate");
-			 sendMessageRequest.setMessageGroupId("localApp-" + uuid.toString());
+			sendMessageRequest.setMessageGroupId("localApp-" + uuid.toString());
 			SendMessageResult messageResult =  sqs.sendMessageRequest(sendMessageRequest);
 			while(messageResult.getMessageId() == null){
 				System.out.println("termiante is being send " + sqs.sendMessageRequest(sendMessageRequest));
@@ -78,8 +84,9 @@ public class App {
 			if(responseCompleteFilesKeys.size() > 0)
 				downloadResulstAndCreateHtml(responseCompleteFilesKeys);
 		}
-		
-		System.out.println("ENDD");
+
+		long endTime = System.nanoTime();
+		System.out.println("Took "+(double)(endTime - startTime)/ 1000000000.0 + " seconds"); 
 
 
 	}
@@ -114,7 +121,7 @@ public class App {
 				// Basic 32-bit Amazon Linux AMI 1.0 (AMI Id: ami-08728661)
 				RunInstancesRequest request = new RunInstancesRequest("ami-0a00ce72", 1, 1);
 
-				request.setInstanceType(InstanceType.T2Large.toString());
+				request.setInstanceType(InstanceType.T2Medium.toString());
 				request.setUserData(getUserDataScript());
 
 				Instance instance = ec2.runInstances(request).getReservation().getInstances().get(0);
@@ -149,18 +156,17 @@ public class App {
 			messageAttributes.put("bucketName", new MessageAttributeValue().withDataType("String").withStringValue(s3.getBucketName()));
 			messageAttributes.put("numberOfFilesPerWorker", new MessageAttributeValue().withDataType("String").withStringValue(String.valueOf(numberOfFilesPerWorker)));
 			messageAttributes.put("UUID", new MessageAttributeValue().withDataType("String").withStringValue(uuid.toString()));
-			
+
 			SendMessageRequest sendMessageRequest = new SendMessageRequest();
 			sendMessageRequest.withMessageBody("fileMessage" + UUID.randomUUID().toString());
 			sendMessageRequest.withQueueUrl(sqs.getMyQueueUrlSend());
 			sendMessageRequest.withMessageAttributes(messageAttributes);
 			sendMessageRequest.setMessageGroupId("groupid-" + uuid.toString());
-			
+
 			SendMessageResult result = sqs.sendMessageRequest(sendMessageRequest);
-			System.out.println("succeed sending message: "+result.getMessageId() + " " + result.getSequenceNumber());
-			//sqs.sendMessage("fileMessage###" + fileKey + "###" + s3.getBucketName() + "###" + numberOfFilesPerWorker + "###" + uuid);
 		}
-		System.out.println("send files");
+		System.out.println();
+		System.out.println("Done sending files");
 		System.out.println();
 	}
 
@@ -169,13 +175,8 @@ public class App {
 		ArrayList<String> responseKeys = new ArrayList<String>();
 		messages = sqs.reciveMessages();
 		for(Message message:messages){
-			//if(message.getBody().split("###")[0].equals("completeFileMessage") && (message.getBody().split("###")[2].equals(uuid.toString()))) {
-			////responseKeys.add(message.getBody().split("###")[1]);
 			responseKeys.add(message.getMessageAttributes().get("fileKey").getStringValue());
-			// delete the "processComplete" message
 			sqs.deleteMessages(Collections.singletonList(message));
-			//}
-			System.out.println("waiting for process complete message, another 20 sec");
 		}
 		return responseKeys;
 	}
@@ -193,7 +194,6 @@ public class App {
 				htmlBuilder.append("<html>");
 				htmlBuilder.append("<head><title> file " + fileName + "</title></head>");
 				htmlBuilder.append("<body>");
-				//String line;
 				String color, sarcasm;
 				Gson gson = new Gson(); 
 				JsonElement jelem;
@@ -218,16 +218,13 @@ public class App {
 					sarcasm = "sarcasm detected: "+ (jobj.get("sentiment").getAsInt() < (jobj.get("rating").getAsInt() - 2) ? "True" : "False");
 					htmlBuilder.append("</br>");
 					htmlBuilder.append("<div style=\"border-top:3px solid grey;border-bottom:3px solid grey;padding:10px;\">"+  
-												"<b>Review: </b> <span style=\"color:"+color +";\">"+ jobj.get("review").getAsString() + "</span>"+
-												"<br><b>Link: </b><a href=\"" +  jobj.get("url").getAsString() + "\">"+jobj.get("url").getAsString()+"</a>"
-												+"<br><b>"+sarcasm+"</b>"
-												+"<br><b>Sentiments: </b>"+jobj.get("sentiment").toString()+"<b>, Entities: </b>"+ jobj.get("entities").getAsString() + " </div>");
+							"<b>Review: </b> <span style=\"color:"+color +";\">"+ jobj.get("review").getAsString() + "</span>"+
+							"<br><b>Link: </b><a href=\"" +  jobj.get("url").getAsString() + "\">"+jobj.get("url").getAsString()+"</a>"
+							+"<br><b>"+sarcasm+"</b>"
+							+"<br><b>Sentiments: </b>"+jobj.get("sentiment").toString()+"<b>, Entities: </b>"+ jobj.get("entities").getAsString() + " </div>");
 
 				}
 				htmlBuilder.append("</body></html>");
-
-				System.out.println("------");
-				System.out.println(filesPathArray);
 				System.out.println(fileName);
 				String fileOutputName =  outputFilesPathArray.get(filesPathArray.indexOf(fileName));
 				PrintWriter writer = new PrintWriter(fileOutputName +  ".html" , "UTF-8");
@@ -236,7 +233,6 @@ public class App {
 				tempArrayList.add(fileOutputName+ ".html");
 				writer.close();
 				s3.uploadFiles(tempArrayList);
-				//System.out.println("APP RESULT" + responseObject.getObjectContent()); //TODO convert object content to html
 
 			}
 		} catch (IOException e) {
@@ -272,22 +268,37 @@ public class App {
 		return builder.toString();
 	}
 
-	private static void getArgsDetails(String[] args){
+	private static boolean getArgsDetails(String[] args){
 		int numberOfFiles=args.length;
 		if(args[args.length - 1].equals("terminate")){
 			terminate = true;
-			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 2]);
-			numberOfFiles -= 2;
+			try {
+				numberOfFilesPerWorker = Integer.parseInt(args[args.length - 2]);
+				numberOfFiles -= 2;
+			}  catch(NumberFormatException nfe){
+				return false;
+			}
+
+
 		}
 		else{
 			numberOfFiles -= 1;
+			try {
 			numberOfFilesPerWorker = Integer.parseInt(args[args.length - 1]);
+			}  catch(NumberFormatException nfe){
+				return false;
+			}
 		}
+		if(numberOfFiles % 2 != 0 )
+			return false;
+
+		System.out.println(numberOfFiles);
 		for(int i=0;i<numberOfFiles;i++){
 			if(i<numberOfFiles/2)
 				filesPathArray.add(args[i]);
 			else
 				outputFilesPathArray.add(args[i]);			
 		}
+		return true;
 	}
 }
